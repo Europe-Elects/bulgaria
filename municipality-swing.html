@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bulgaria 2026 – Municipality Swing vs 2024</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/map.css">
+<style>
+  .swing-legend-gradient {
+    display: flex; align-items: center; gap: 10px; margin-top: 10px;
+    font-size: 11px; color: #64748B; font-variant-numeric: tabular-nums;
+  }
+  .swing-legend-gradient .bar {
+    flex: 1; max-width: 320px; height: 10px; border-radius: 3px;
+    border: 1px solid #E2E8F0;
+  }
+  .empty-state {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    pointer-events: none; font-size: 12px; color: #94A3B8; font-style: italic; text-align: center;
+    padding: 20px;
+  }
+  #tooltip h3 .bg-name { font-size: 12px; font-weight: 400; color: #64748B; margin-left: 6px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Bulgaria 2026 · Municipality swing vs Oct 2024</h1>
+    <div class="subtitle">Percentage-point change in each party's vote share per municipality · 265 units · click a party to drill down</div>
+    <div class="status-row">
+      <span class="last-updated" id="lastUpdated">Last updated: –</span>
+      <span class="counted-pill" id="countedPill"></span>
+    </div>
+  </div>
+  <div id="map-container">
+    <svg id="map" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet"></svg>
+    <div id="emptyState" class="empty-state" style="display:none"></div>
+    <div id="tooltip"></div>
+  </div>
+  <div class="cta" role="note">
+    <span class="cta-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+    <span>Tap a party to see its municipality-by-municipality swing. Default view shades each municipality by its biggest gainer.</span>
+  </div>
+  <div class="legend" id="legend"></div>
+  <div class="swing-legend-gradient" id="swingLegend" style="display:none">
+    <span id="swLossLabel">−</span>
+    <div class="bar" id="swBar"></div>
+    <span id="swGainLabel">+</span>
+  </div>
+  <div class="footer">· Chart made by Andrei Miclea · Source: Central Election Commission (CIK)</div>
+</div>
+
+<script src="assets/map-utils.js"></script>
+<script>
+(function () {
+  const { isLightFill, cssId, bbox, makeProjection, featurePath,
+          autoRefresh, formatTs, setCountedPill, setLiveDot } = window.EE;
+  const SVG_W = 1000, SVG_H = 600;
+  const NO_DATA_COLOR = '#E2E8F0';
+  const PARTIES = {};
+  const PARTY_ORDER = [];
+  const PATHS = {}, META = {};
+  let BASELINE = null, live = {};
+  let currentView = 'biggest';
+
+  const BASE_KEY_MAP = {
+    'GERB-SDS':'gerb', 'PP-DB':'ppdb', 'Vazrazhdane':'vaz', 'DPS-NN':'dps',
+    'BSP-UL':'bsp', 'ITN':'itn', 'APS':'aps', 'MECh':'mech', 'Velichie':'vel',
+  };
+
+  async function init() {
+    const [geo, baseline] = await Promise.all([
+      fetch('bg-municipalities.json').then(r => r.json()),
+      fetch('baseline_2024_municipalities.json').then(r => r.json()),
+    ]);
+    BASELINE = baseline;
+    const bx = bbox(geo.features);
+    const proj = makeProjection(bx, SVG_W, SVG_H);
+    geo.features.forEach(f => {
+      const id = f.properties.nuts4 || f.properties.id;
+      META[id] = { name: f.properties.name, name_en: baseline[id]?.name_en || f.properties.name };
+      PATHS[id] = featurePath(f, proj);
+    });
+
+    // Build party registry from baseline (we don't have results_live party meta
+    // until the post-count parser writes results_live_municipalities.json)
+    // Seed with the same 9 parties the oblast page uses. Fetch oblast results
+    // to pull colour metadata.
+    try {
+      const obD = await fetch('results_live.json?' + Date.now()).then(r => r.json());
+      obD.parties.forEach(p => {
+        const base = BASE_KEY_MAP[p.key];
+        if (!base) return;
+        PARTIES[p.key] = { color: p.color, color2: p.color2 || null, name: p.name, base };
+        PARTY_ORDER.push(p.key);
+      });
+    } catch (e) {}
+    buildLegend();
+
+    await refresh();
+    autoRefresh(refresh, 60000);
+  }
+
+  async function refresh() {
+    try {
+      const d = await fetch('results_live_municipalities.json?' + Date.now()).then(r => r.json());
+      // Same seed-guard as the oblast swing: only render arrows when real 2026 data has started arriving.
+      live = (d.seedData || d.processingPctDomestic === 0) ? {} : (d.municipalityList || {});
+      const el = document.getElementById('lastUpdated');
+      el.textContent = 'Last updated: ' + formatTs(d.lastUpdated);
+      setLiveDot(el, d.processingPctDomestic > 0 && d.processingPctDomestic < 100);
+      setCountedPill(document.getElementById('countedPill'), d.processingPctDomestic);
+    } catch (e) {
+      live = {};
+      document.getElementById('lastUpdated').textContent = 'Awaiting post-count data';
+      document.getElementById('countedPill').style.display = 'none';
+    }
+    render();
+  }
+
+  function computeSwing(id, partyKey) {
+    const base = BASELINE[id];
+    const cur = live[id];
+    if (!base || !cur) return null;
+    const p = PARTIES[partyKey];
+    if (!p) return null;
+    const before = base[p.base];
+    const after = cur[partyKey];
+    if (typeof before !== 'number' || typeof after !== 'number') return null;
+    return +(after - before).toFixed(2);
+  }
+  function biggestGainer(id) {
+    let best = null;
+    for (const key of PARTY_ORDER) {
+      const s = computeSwing(id, key);
+      if (s === null) continue;
+      if (!best || s > best.delta) best = { party: key, delta: s };
+    }
+    return best && best.delta > 0 ? best : null;
+  }
+  function hexToRgb(h) {
+    h = h.replace('#', '');
+    return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
+  }
+  function swingShade(delta, partyColor) {
+    if (delta === null) return NO_DATA_COLOR;
+    const t = Math.max(-1, Math.min(1, delta / 10));
+    if (t === 0) return '#F8FAFC';
+    if (t > 0) {
+      const b = hexToRgb(partyColor);
+      return `rgb(${Math.round(248+(b.r-248)*t)},${Math.round(250+(b.g-250)*t)},${Math.round(252+(b.b-252)*t)})`;
+    }
+    const t2 = -t;
+    return `rgb(${Math.round(248+(100-248)*t2)},${Math.round(250+(116-250)*t2)},${Math.round(252+(139-252)*t2)})`;
+  }
+
+  function render() {
+    const svg = document.getElementById('map');
+    const ns = 'http://www.w3.org/2000/svg';
+    svg.innerHTML = '';
+
+    const defs = document.createElementNS(ns, 'defs');
+    for (const [key, p] of Object.entries(PARTIES)) {
+      if (!p.color2) continue;
+      const pat = document.createElementNS(ns, 'pattern');
+      pat.setAttribute('id', 'split-' + cssId(key));
+      pat.setAttribute('patternUnits', 'userSpaceOnUse');
+      pat.setAttribute('width', '10'); pat.setAttribute('height', '10');
+      pat.setAttribute('patternTransform', 'rotate(45)');
+      const r1 = document.createElementNS(ns, 'rect'); r1.setAttribute('x','0'); r1.setAttribute('y','0'); r1.setAttribute('width','5'); r1.setAttribute('height','10'); r1.setAttribute('fill', p.color);
+      const r2 = document.createElementNS(ns, 'rect'); r2.setAttribute('x','5'); r2.setAttribute('y','0'); r2.setAttribute('width','5'); r2.setAttribute('height','10'); r2.setAttribute('fill', p.color2);
+      pat.appendChild(r1); pat.appendChild(r2); defs.appendChild(pat);
+    }
+    svg.appendChild(defs);
+
+    const ids = Object.keys(PATHS);
+    let anySwing = false;
+    const singleParty = currentView !== 'biggest' ? currentView : null;
+
+    ids.forEach(id => {
+      let fill;
+      if (singleParty) {
+        const d = computeSwing(id, singleParty);
+        if (d !== null) anySwing = true;
+        fill = swingShade(d, PARTIES[singleParty].color);
+      } else {
+        const best = biggestGainer(id);
+        if (best) {
+          anySwing = true;
+          const p = PARTIES[best.party];
+          const mag = Math.min(1, best.delta / 10);
+          if (p.color2) {
+            fill = `url(#split-${cssId(best.party)})`;
+          } else {
+            const b = hexToRgb(p.color);
+            fill = `rgb(${Math.round(248+(b.r-248)*mag)},${Math.round(250+(b.g-250)*mag)},${Math.round(252+(b.b-252)*mag)})`;
+          }
+        } else {
+          fill = NO_DATA_COLOR;
+        }
+      }
+      const p = document.createElementNS(ns, 'path');
+      p.setAttribute('d', PATHS[id]); p.setAttribute('class', 'county'); p.setAttribute('fill', fill);
+      p.addEventListener('mouseenter', e => showTooltip(e, id));
+      p.addEventListener('mousemove', moveTooltip);
+      p.addEventListener('mouseleave', () => document.getElementById('tooltip').style.display = 'none');
+      svg.appendChild(p);
+    });
+
+    const es = document.getElementById('emptyState');
+    if (!anySwing) {
+      es.style.display = 'flex';
+      es.innerHTML = 'Awaiting post-count municipality data.<br>CIK publishes per-municipality results only after the preliminary count is complete (~2–5 days after 19 April).';
+    } else {
+      es.style.display = 'none';
+    }
+
+    const swLegend = document.getElementById('swingLegend');
+    if (singleParty) {
+      const p = PARTIES[singleParty];
+      swLegend.style.display = 'flex';
+      document.getElementById('swLossLabel').textContent = '−10pp';
+      document.getElementById('swGainLabel').textContent = '+10pp';
+      document.getElementById('swBar').style.background = `linear-gradient(to right, rgb(100,116,139), #F8FAFC, ${p.color})`;
+    } else {
+      swLegend.style.display = 'none';
+    }
+  }
+
+  function showTooltip(e, id) {
+    const tt = document.getElementById('tooltip');
+    const m = META[id] || {};
+    const base = BASELINE[id];
+    const cur = live[id];
+    let html = `<h3>${m.name_en || id}${m.name && m.name !== m.name_en ? ` <span class="bg-name">${m.name}</span>` : ''}</h3>`;
+    if (!base || !cur) {
+      html += '<div class="no-data">No 2026 data yet</div>';
+    } else {
+      const rows = PARTY_ORDER.map(key => {
+        const p = PARTIES[key];
+        const before = base[p.base];
+        const after = cur[key];
+        const delta = (typeof before === 'number' && typeof after === 'number') ? +(after - before).toFixed(2) : null;
+        return { key, p, before, after, delta };
+      }).sort((a, b) => Math.abs(b.delta ?? 0) - Math.abs(a.delta ?? 0));
+      for (const r of rows) {
+        const active = currentView === r.key;
+        const deltaStr = r.delta === null ? '—' : (r.delta > 0 ? '+' : '') + r.delta.toFixed(2) + 'pp';
+        const deltaColor = r.delta === null ? '#94A3B8'
+          : r.delta > 0.05 ? '#1D4ED8'
+          : r.delta < -0.05 ? '#64748B' : '#334155';
+        html += `<div class="bar-row" style="${active ? 'font-weight:700;' : ''}">
+          <div class="bar-label" style="color:${r.p.color}">${r.key}${active ? ' ●' : ''}</div>
+          <div class="bar-pct" style="min-width:60px">${typeof r.before === 'number' ? r.before.toFixed(1)+'%' : '—'} →</div>
+          <div class="bar-pct" style="min-width:60px">${typeof r.after === 'number' ? r.after.toFixed(1)+'%' : '—'}</div>
+          <div class="bar-pct" style="color:${deltaColor};min-width:56px;font-weight:600">${deltaStr}</div></div>`;
+      }
+    }
+    tt.innerHTML = html; tt.style.display = 'block';
+    tt.style.minWidth = '340px';
+    moveTooltip(e);
+  }
+  function moveTooltip(e) {
+    const tt = document.getElementById('tooltip');
+    const rect = document.getElementById('map-container').getBoundingClientRect();
+    let left = e.clientX - rect.left + 15;
+    if (left + 350 > rect.width) left = e.clientX - rect.left - 350;
+    tt.style.left = left + 'px'; tt.style.top = (e.clientY - rect.top - 10) + 'px';
+  }
+
+  function buildLegend() {
+    const lg = document.getElementById('legend');
+    lg.innerHTML = '';
+    for (const key of PARTY_ORDER) {
+      const p = PARTIES[key];
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'legend-item clickable' + (currentView === key ? ' active' : '');
+      btn.dataset.party = key;
+      const sw = p.color2
+        ? `linear-gradient(135deg, ${p.color} 0 50%, ${p.color2} 50% 100%)`
+        : p.color;
+      btn.innerHTML = `<div class="legend-swatch" style="background:${sw}"></div>${p.name}`;
+      btn.onclick = () => {
+        currentView = currentView === key ? 'biggest' : key;
+        document.querySelectorAll('.legend-item.clickable').forEach(el =>
+          el.classList.toggle('active', el.dataset.party === currentView));
+        render();
+      };
+      lg.appendChild(btn);
+    }
+    const nd = document.createElement('div');
+    nd.className = 'legend-item';
+    nd.innerHTML = `<div class="legend-swatch" style="background:${NO_DATA_COLOR}"></div>No data`;
+    lg.appendChild(nd);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

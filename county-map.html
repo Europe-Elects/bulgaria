@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bulgaria 2026 – National List by Oblast</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/map.css">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Bulgaria 2026 · Party list by oblast</h1>
+    <div class="subtitle">Party list vote share across 28 oblasts · domestic votes only · auto-refresh 60s</div>
+    <div class="status-row">
+      <span class="last-updated" id="lastUpdated">Last updated: –</span>
+      <span class="counted-pill" id="countedPill"></span>
+    </div>
+  </div>
+  <div id="map-container"><svg id="map" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet"></svg><div id="tooltip"></div></div>
+  <div class="cta" role="note">
+    <span class="cta-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+    <span>Tap a party below to shade the map by its vote share</span>
+  </div>
+  <div class="legend" id="legend"></div>
+  <div class="legend-hint" id="legendHint">Click again on the active party to return to the winner view</div>
+  <div class="footer">· Chart made by Andrei Miclea · Source: Central Election Commission (CIK)</div>
+</div>
+<script src="assets/map-utils.js"></script>
+<script>
+(function () {
+  const { NO_DATA_COLOR, isLightFill, partyShade, partyMaxPct, cssId,
+          getWinner, hasData, bbox, makeProjection, featurePath, featureCentroid,
+          buildSplitPatterns, loadResults, autoRefresh, formatTs, setCountedPill, setLiveDot } = window.EE;
+  const SVG_W = 1000, SVG_H = 600;
+
+  const PARTIES = {}, PARTY_ORDER = [];
+  const NAMES = {}, PATHS = {}, CENTROIDS = {};
+  let currentView = 'winner';
+  let lastData = {};
+
+  async function init() {
+    const geo = await fetch('bg.json').then(r => r.json());
+    const bx = bbox(geo.features);
+    const proj = makeProjection(bx, SVG_W, SVG_H);
+    geo.features.forEach(f => {
+      const id = f.properties.id;
+      NAMES[id] = f.properties.name;
+      PATHS[id] = featurePath(f, proj);
+      CENTROIDS[id] = featureCentroid(f, proj);
+    });
+    // Sofia Province label override (BG23 centroid sits inside BG22)
+    if (CENTROIDS.BG22 && CENTROIDS.BG23) {
+      CENTROIDS.BG23 = { cx: CENTROIDS.BG22.cx + 50, cy: CENTROIDS.BG22.cy - 30 };
+    }
+    await refresh();
+    autoRefresh(refresh, 60000);
+  }
+
+  async function refresh() {
+    const d = await loadResults('results_live.json');
+    document.getElementById('lastUpdated').textContent = 'Last updated: ' + formatTs(d.lastUpdated);
+    setLiveDot(document.getElementById('lastUpdated'), d.processingPctDomestic < 100);
+    setCountedPill(document.getElementById('countedPill'), d.processingPctDomestic);
+
+    // party registry
+    if (!PARTY_ORDER.length) {
+      d.parties.forEach(p => { PARTIES[p.key] = { color: p.color, color2: p.color2 || null, name: p.name }; PARTY_ORDER.push(p.key); });
+      buildLegend();
+    }
+    lastData = d.oblastList || {};
+    build();
+  }
+
+  function build() {
+    const svg = document.getElementById('map');
+    const ns = 'http://www.w3.org/2000/svg';
+    svg.innerHTML = '';
+    buildSplitPatterns(svg, PARTIES);
+    const partyMode = currentView !== 'winner';
+    const maxForParty = partyMode ? partyMaxPct(lastData, currentView) : 0;
+    const baseColor = partyMode ? PARTIES[currentView].color : null;
+    const ids = Object.keys(PATHS);
+
+    ids.forEach(id => {
+      const row = lastData[id];
+      let fill;
+      if (partyMode) {
+        const pct = row && typeof row[currentView] === 'number' ? row[currentView] : null;
+        fill = partyShade(pct, maxForParty, baseColor);
+      } else {
+        const w = getWinner(row);
+        if (w && PARTIES[w.party]) {
+          const pw = PARTIES[w.party];
+          fill = pw.color2 ? `url(#split-${cssId(w.party)})` : pw.color;
+        } else fill = NO_DATA_COLOR;
+      }
+      const p = document.createElementNS(ns, 'path');
+      p.setAttribute('d', PATHS[id]); p.setAttribute('class', 'county'); p.setAttribute('fill', fill);
+      p.addEventListener('mouseenter', e => showTooltip(e, id, row));
+      p.addEventListener('mousemove', moveTooltip);
+      p.addEventListener('mouseleave', () => document.getElementById('tooltip').style.display = 'none');
+      svg.appendChild(p);
+    });
+
+    ids.forEach(id => {
+      const row = lastData[id];
+      const { cx, cy } = CENTROIDS[id];
+      let fill, primary;
+      if (partyMode) {
+        const pct = row && typeof row[currentView] === 'number' ? row[currentView] : null;
+        fill = partyShade(pct, maxForParty, baseColor);
+        primary = pct > 0 ? pct : null;
+      } else {
+        const w = getWinner(row);
+        fill = w && PARTIES[w.party] ? PARTIES[w.party].color : NO_DATA_COLOR;
+        primary = w ? w.pct : null;
+      }
+      const light = isLightFill(fill);
+      const t = document.createElementNS(ns, 'text');
+      t.setAttribute('x', cx); t.setAttribute('y', cy + (primary !== null ? -3 : 3));
+      t.setAttribute('class', 'county-label' + (light ? '' : ' light'));
+      t.textContent = NAMES[id] || id;
+      svg.appendChild(t);
+      if (primary !== null) {
+        const pc = document.createElementNS(ns, 'text');
+        pc.setAttribute('x', cx); pc.setAttribute('y', cy + 8);
+        pc.setAttribute('class', 'county-pct' + (light ? '' : ' light'));
+        pc.textContent = primary.toFixed(1) + '%';
+        svg.appendChild(pc);
+      }
+    });
+  }
+
+  function showTooltip(e, id, row) {
+    const tt = document.getElementById('tooltip');
+    let html = `<h3>${NAMES[id] || id}</h3>`;
+    if (row && hasData(row)) {
+      Object.entries(row).filter(([k, v]) => !window.EE.META_KEYS.has(k) && typeof v === 'number')
+        .sort((a, b) => b[1] - a[1]).forEach(([party, pct]) => {
+          if (!PARTIES[party]) return;
+          const col = PARTIES[party].color;
+          const active = currentView === party;
+          html += `<div class="bar-row" style="${active ? 'font-weight:700;' : ''}">
+            <div class="bar-label" style="color:${col}">${party}${active ? ' ●' : ''}</div>
+            <div class="bar-container"><div class="bar-fill" style="width:${pct}%;background:${col}"></div></div>
+            <div class="bar-pct">${pct.toFixed(1)}%</div></div>`;
+        });
+    } else html += '<div class="no-data">No data yet</div>';
+    tt.innerHTML = html; tt.style.display = 'block'; moveTooltip(e);
+  }
+  function moveTooltip(e) {
+    const tt = document.getElementById('tooltip');
+    const rect = document.getElementById('map-container').getBoundingClientRect();
+    let left = e.clientX - rect.left + 15;
+    if (left + 250 > rect.width) left = e.clientX - rect.left - 250;
+    tt.style.left = left + 'px'; tt.style.top = (e.clientY - rect.top - 10) + 'px';
+  }
+
+  function buildLegend() {
+    const lg = document.getElementById('legend');
+    lg.innerHTML = '';
+    PARTY_ORDER.forEach(key => {
+      const p = PARTIES[key];
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'legend-item clickable' + (currentView === key ? ' active' : '');
+      btn.dataset.party = key;
+      btn.setAttribute('aria-pressed', currentView === key ? 'true' : 'false');
+      const sw = p.color2
+        ? `linear-gradient(135deg, ${p.color} 0 50%, ${p.color2} 50% 100%)`
+        : p.color;
+      btn.innerHTML = `<div class="legend-swatch" style="background:${sw}"></div>${p.name}`;
+      btn.onclick = () => {
+        currentView = currentView === key ? 'winner' : key;
+        document.querySelectorAll('.legend-item.clickable').forEach(el => {
+          const a = el.dataset.party === currentView;
+          el.classList.toggle('active', a); el.setAttribute('aria-pressed', a ? 'true' : 'false');
+        });
+        const hint = document.getElementById('legendHint');
+        hint.textContent = currentView === 'winner'
+          ? 'Click again on the active party to return to the winner view'
+          : `Showing ${PARTIES[currentView].name} — click again to return to the winner view`;
+        build();
+      };
+      lg.appendChild(btn);
+    });
+    const nd = document.createElement('div');
+    nd.className = 'legend-item';
+    nd.innerHTML = `<div class="legend-swatch" style="background:${NO_DATA_COLOR}"></div>No data`;
+    lg.appendChild(nd);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

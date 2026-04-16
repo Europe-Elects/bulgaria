@@ -1,0 +1,34 @@
+# =============================================================================
+# Bulgaria Election Maps — public repo
+# Only files/folders needed to render the maps are tracked; everything else
+# is ignored. Comments on dedicated lines only (gitignore has no inline-comment
+# support — trailing text is treated as part of the pattern).
+# =============================================================================
+
+# Private tooling — NEVER push to github.io
+scraper/
+*.pyc
+__pycache__/
+.venv/
+venv/
+
+# Raw CIK opendata — huge, not consumed by the web pages
+export/
+spreadsheet/
+
+# Stale aggregation artefact superseded by results.json
+data_by_oblast.json
+
+# Build artefact (post_count.py crosswalk cache — rebuilt from spreadsheet/)
+.cik4_to_nuts4.json
+
+# Planning / internal docs — not needed to render
+.planning/
+PLAN.md
+election-night.md
+
+# Editor / OS noise
+.claude/
+.DS_Store
+*.tmp
+results_live.json.backup

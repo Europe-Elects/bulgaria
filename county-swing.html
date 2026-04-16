@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bulgaria 2026 – Oblast Swing vs 2024</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/map.css">
+<style>
+  .swing-legend-gradient {
+    display: flex; align-items: center; gap: 10px; margin-top: 10px;
+    font-size: 11px; color: #64748B; font-variant-numeric: tabular-nums;
+  }
+  .swing-legend-gradient .bar {
+    flex: 1; max-width: 320px; height: 10px; border-radius: 3px;
+    border: 1px solid #E2E8F0;
+  }
+  .empty-state {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    pointer-events: none; font-size: 12px; color: #94A3B8; font-style: italic; text-align: center;
+    padding: 20px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Bulgaria 2026 · Oblast swing vs Oct 2024</h1>
+    <div class="subtitle">Percentage-point change in each party's vote share per oblast · click a party to drill down · updates every 60s</div>
+    <div class="status-row">
+      <span class="last-updated" id="lastUpdated">Last updated: –</span>
+      <span class="counted-pill" id="countedPill"></span>
+    </div>
+  </div>
+  <div id="map-container">
+    <svg id="map" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet"></svg>
+    <div id="emptyState" class="empty-state" style="display:none"></div>
+    <div id="tooltip"></div>
+  </div>
+  <div class="cta" role="note">
+    <span class="cta-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+    <span>Tap a party to see its oblast-by-oblast swing. Default view shades each oblast by its biggest gainer.</span>
+  </div>
+  <div class="legend" id="legend"></div>
+  <div class="swing-legend-gradient" id="swingLegend" style="display:none">
+    <span id="swLossLabel">−</span>
+    <div class="bar" id="swBar"></div>
+    <span id="swGainLabel">+</span>
+  </div>
+  <div class="footer">· Chart made by Andrei Miclea · Source: Central Election Commission (CIK)</div>
+</div>
+
+<script src="assets/map-utils.js"></script>
+<script>
+(function () {
+  const { isLightFill, cssId, bbox, makeProjection, featurePath, featureCentroid,
+          loadResults, autoRefresh, formatTs, setCountedPill, setLiveDot, META_KEYS } = window.EE;
+  const SVG_W = 1000, SVG_H = 600;
+  const NO_DATA_COLOR = '#E2E8F0';
+
+  const PARTIES = {};        // key -> { color, color2, name, base }
+  const PARTY_ORDER = [];
+  const NAMES = {}, PATHS = {}, CENTROIDS = {};
+  let BASELINE = null, live = {};
+  let currentView = 'biggest'; // 'biggest' | <party-key>
+
+  // Baseline → "base" field name in baseline_2024_oblasts.json
+  const BASE_KEY_MAP = {
+    'GERB-SDS':'gerb', 'PP-DB':'ppdb', 'Vazrazhdane':'vaz', 'DPS-NN':'dps',
+    'BSP-UL':'bsp', 'ITN':'itn', 'APS':'aps', 'MECh':'mech', 'Velichie':'vel',
+  };
+
+  async function init() {
+    const [geo, baseline] = await Promise.all([
+      fetch('bg.json').then(r => r.json()),
+      fetch('baseline_2024_oblasts.json').then(r => r.json()),
+    ]);
+    BASELINE = baseline;
+    const bx = bbox(geo.features);
+    const proj = makeProjection(bx, SVG_W, SVG_H);
+    geo.features.forEach(f => {
+      const id = f.properties.id;
+      NAMES[id] = f.properties.name;
+      PATHS[id] = featurePath(f, proj);
+      CENTROIDS[id] = featureCentroid(f, proj);
+    });
+    if (CENTROIDS.BG22 && CENTROIDS.BG23) {
+      CENTROIDS.BG23 = { cx: CENTROIDS.BG22.cx + 50, cy: CENTROIDS.BG22.cy - 30 };
+    }
+    await refresh();
+    autoRefresh(refresh, 60000);
+  }
+
+  async function refresh() {
+    const d = await loadResults('results_live.json');
+    document.getElementById('lastUpdated').textContent = 'Last updated: ' + formatTs(d.lastUpdated);
+    setLiveDot(document.getElementById('lastUpdated'), d.processingPctDomestic > 0 && d.processingPctDomestic < 100);
+    setCountedPill(document.getElementById('countedPill'), d.processingPctDomestic);
+
+    if (!PARTY_ORDER.length) {
+      d.parties.forEach(p => {
+        const base = BASE_KEY_MAP[p.key];
+        if (!base) return;
+        PARTIES[p.key] = { color: p.color, color2: p.color2 || null, name: p.name, base };
+        PARTY_ORDER.push(p.key);
+      });
+      buildLegend();
+    }
+    // A swing map is only meaningful when the "after" side is the new election.
+    // If the live file is still seed / pre-election (seedData or 0% counted),
+    // render nothing — empty state shows "awaiting 2026 values".
+    live = (d.seedData || d.processingPctDomestic === 0) ? {} : (d.oblastList || {});
+    render();
+  }
+
+  // --- swing computation ---
+  function computeSwing(id, partyKey) {
+    const base = BASELINE[id];
+    const cur = live[id];
+    if (!base || !cur) return null;
+    const p = PARTIES[partyKey];
+    if (!p) return null;
+    const before = base[p.base];
+    const after = cur[partyKey];
+    if (typeof before !== 'number' || typeof after !== 'number') return null;
+    return +(after - before).toFixed(2);
+  }
+  function biggestGainer(id) {
+    let best = null;
+    for (const key of PARTY_ORDER) {
+      const s = computeSwing(id, key);
+      if (s === null) continue;
+      if (!best || s > best.delta) best = { party: key, delta: s };
+    }
+    return best && best.delta > 0 ? best : null;
+  }
+
+  // diverging color: negative → grey, positive → party colour
+  function swingShade(delta, partyColor) {
+    if (delta === null || delta === undefined) return NO_DATA_COLOR;
+    const maxAbs = 10;
+    const t = Math.max(-1, Math.min(1, delta / maxAbs));
+    if (t === 0) return '#F8FAFC';
+    if (t > 0) {
+      // white → party colour
+      const base = hexToRgb(partyColor);
+      const r = Math.round(248 + (base.r - 248) * t);
+      const g = Math.round(250 + (base.g - 250) * t);
+      const b = Math.round(252 + (base.b - 252) * t);
+      return `rgb(${r},${g},${b})`;
+    }
+    // loss: white → slate-500
+    const t2 = -t;
+    const r = Math.round(248 + (100 - 248) * t2);
+    const g = Math.round(250 + (116 - 250) * t2);
+    const b = Math.round(252 + (139 - 252) * t2);
+    return `rgb(${r},${g},${b})`;
+  }
+  function hexToRgb(h) {
+    h = h.replace('#', '');
+    return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
+  }
+
+  function render() {
+    const svg = document.getElementById('map');
+    const ns = 'http://www.w3.org/2000/svg';
+    svg.innerHTML = '';
+
+    const defs = document.createElementNS(ns, 'defs');
+    // split-stripe coalition patterns (for default "biggest gainer" view)
+    for (const [key, p] of Object.entries(PARTIES)) {
+      if (!p.color2) continue;
+      const pat = document.createElementNS(ns, 'pattern');
+      pat.setAttribute('id', 'split-' + cssId(key));
+      pat.setAttribute('patternUnits', 'userSpaceOnUse');
+      pat.setAttribute('width', '10'); pat.setAttribute('height', '10');
+      pat.setAttribute('patternTransform', 'rotate(45)');
+      const r1 = document.createElementNS(ns, 'rect'); r1.setAttribute('x','0'); r1.setAttribute('y','0'); r1.setAttribute('width','5'); r1.setAttribute('height','10'); r1.setAttribute('fill', p.color);
+      const r2 = document.createElementNS(ns, 'rect'); r2.setAttribute('x','5'); r2.setAttribute('y','0'); r2.setAttribute('width','5'); r2.setAttribute('height','10'); r2.setAttribute('fill', p.color2);
+      pat.appendChild(r1); pat.appendChild(r2); defs.appendChild(pat);
+    }
+    svg.appendChild(defs);
+
+    const ids = Object.keys(PATHS);
+    let anySwing = false;
+    const singleParty = currentView !== 'biggest' ? currentView : null;
+
+    // pass 1: fills
+    ids.forEach(id => {
+      let fill;
+      if (singleParty) {
+        const d = computeSwing(id, singleParty);
+        if (d !== null) anySwing = true;
+        fill = swingShade(d, PARTIES[singleParty].color);
+      } else {
+        const best = biggestGainer(id);
+        if (best) {
+          anySwing = true;
+          const p = PARTIES[best.party];
+          // saturation by magnitude
+          const mag = Math.min(1, best.delta / 10);
+          if (p.color2) {
+            fill = `url(#split-${cssId(best.party)})`;
+          } else {
+            const base = hexToRgb(p.color);
+            const r = Math.round(248 + (base.r - 248) * mag);
+            const g = Math.round(250 + (base.g - 250) * mag);
+            const b = Math.round(252 + (base.b - 252) * mag);
+            fill = `rgb(${r},${g},${b})`;
+          }
+        } else {
+          fill = NO_DATA_COLOR;
+        }
+      }
+      const p = document.createElementNS(ns, 'path');
+      p.setAttribute('d', PATHS[id]); p.setAttribute('class', 'county'); p.setAttribute('fill', fill);
+      p.addEventListener('mouseenter', e => showTooltip(e, id));
+      p.addEventListener('mousemove', moveTooltip);
+      p.addEventListener('mouseleave', () => document.getElementById('tooltip').style.display = 'none');
+      svg.appendChild(p);
+    });
+
+    // pass 2: labels
+    ids.forEach(id => {
+      const { cx, cy } = CENTROIDS[id];
+      let primary, labelColor;
+      if (singleParty) {
+        primary = computeSwing(id, singleParty);
+        labelColor = PARTIES[singleParty].color;
+      } else {
+        const best = biggestGainer(id);
+        primary = best ? best.delta : null;
+        labelColor = best ? PARTIES[best.party].color : '#64748B';
+      }
+      const light = isLightFill(labelColor === PARTIES[currentView]?.color && primary > 4 ? PARTIES[currentView].color : '#F8FAFC');
+      const t = document.createElementNS(ns, 'text');
+      t.setAttribute('x', cx); t.setAttribute('y', cy + (primary !== null ? -3 : 3));
+      t.setAttribute('class', 'county-label' + (light ? '' : ' light'));
+      t.textContent = NAMES[id] || id;
+      svg.appendChild(t);
+      if (primary !== null) {
+        const pc = document.createElementNS(ns, 'text');
+        pc.setAttribute('x', cx); pc.setAttribute('y', cy + 8);
+        pc.setAttribute('class', 'county-pct' + (light ? '' : ' light'));
+        const sign = primary > 0 ? '+' : '';
+        pc.textContent = sign + primary.toFixed(1) + 'pp';
+        svg.appendChild(pc);
+      }
+    });
+
+    const es = document.getElementById('emptyState');
+    if (!anySwing) {
+      es.style.display = 'flex';
+      es.innerHTML = 'Awaiting 2026 values. Swing appears as the scraper writes party percentages per oblast.';
+    } else {
+      es.style.display = 'none';
+    }
+
+    // gradient legend
+    const swLegend = document.getElementById('swingLegend');
+    if (singleParty) {
+      const p = PARTIES[singleParty];
+      swLegend.style.display = 'flex';
+      document.getElementById('swLossLabel').textContent = '−10pp';
+      document.getElementById('swGainLabel').textContent = '+10pp';
+      const bar = document.getElementById('swBar');
+      bar.style.background = `linear-gradient(to right, rgb(100,116,139), #F8FAFC, ${p.color})`;
+    } else {
+      swLegend.style.display = 'none';
+    }
+  }
+
+  function showTooltip(e, id) {
+    const tt = document.getElementById('tooltip');
+    const base = BASELINE[id];
+    const cur = live[id];
+    let html = `<h3>${NAMES[id] || id}</h3>`;
+    if (!base || !cur) {
+      html += '<div class="no-data">No data</div>';
+    } else {
+      const rows = PARTY_ORDER.map(key => {
+        const p = PARTIES[key];
+        const before = base[p.base];
+        const after = cur[key];
+        const delta = (typeof before === 'number' && typeof after === 'number') ? +(after - before).toFixed(2) : null;
+        return { key, p, before, after, delta };
+      });
+      // sort by absolute swing magnitude desc
+      rows.sort((a, b) => Math.abs(b.delta ?? 0) - Math.abs(a.delta ?? 0));
+      for (const r of rows) {
+        const active = currentView === r.key;
+        const deltaStr = r.delta === null ? '—' :
+          (r.delta > 0 ? '+' : '') + r.delta.toFixed(2) + 'pp';
+        const deltaColor = r.delta === null ? '#94A3B8'
+          : r.delta > 0.05 ? '#1D4ED8'
+          : r.delta < -0.05 ? '#64748B' : '#334155';
+        html += `<div class="bar-row" style="${active ? 'font-weight:700;' : ''}">
+          <div class="bar-label" style="color:${r.p.color}">${r.key}${active ? ' ●' : ''}</div>
+          <div class="bar-pct" style="min-width:60px">${typeof r.before === 'number' ? r.before.toFixed(1) + '%' : '—'} →</div>
+          <div class="bar-pct" style="min-width:60px">${typeof r.after === 'number' ? r.after.toFixed(1) + '%' : '—'}</div>
+          <div class="bar-pct" style="color:${deltaColor};min-width:56px;font-weight:600">${deltaStr}</div></div>`;
+      }
+    }
+    tt.innerHTML = html; tt.style.display = 'block';
+    // widen tooltip for the 4-column layout
+    tt.style.minWidth = '340px';
+    moveTooltip(e);
+  }
+  function moveTooltip(e) {
+    const tt = document.getElementById('tooltip');
+    const rect = document.getElementById('map-container').getBoundingClientRect();
+    let left = e.clientX - rect.left + 15;
+    if (left + 350 > rect.width) left = e.clientX - rect.left - 350;
+    tt.style.left = left + 'px'; tt.style.top = (e.clientY - rect.top - 10) + 'px';
+  }
+
+  function buildLegend() {
+    const lg = document.getElementById('legend');
+    lg.innerHTML = '';
+    for (const key of PARTY_ORDER) {
+      const p = PARTIES[key];
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'legend-item clickable' + (currentView === key ? ' active' : '');
+      btn.dataset.party = key;
+      const sw = p.color2
+        ? `linear-gradient(135deg, ${p.color} 0 50%, ${p.color2} 50% 100%)`
+        : p.color;
+      btn.innerHTML = `<div class="legend-swatch" style="background:${sw}"></div>${p.name}`;
+      btn.onclick = () => {
+        currentView = currentView === key ? 'biggest' : key;
+        document.querySelectorAll('.legend-item.clickable').forEach(el => {
+          const a = el.dataset.party === currentView;
+          el.classList.toggle('active', a);
+        });
+        render();
+      };
+      lg.appendChild(btn);
+    }
+    const nd = document.createElement('div');
+    nd.className = 'legend-item';
+    nd.innerHTML = `<div class="legend-swatch" style="background:${NO_DATA_COLOR}"></div>No data`;
+    lg.appendChild(nd);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

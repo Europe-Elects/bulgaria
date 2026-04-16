@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bulgaria 2026 – Parliamentary Election Results</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #F8FAFC; color: #1E293B; line-height: 1.55; }
+  .page { max-width: 960px; margin: 0 auto; padding: 32px 20px 60px; }
+  header.hero {
+    padding: 40px 0 28px; border-bottom: 1px solid #E2E8F0; margin-bottom: 32px;
+  }
+  h1 { font-size: 32px; font-weight: 700; color: #0F172A; letter-spacing: -0.5px; }
+  .tagline { font-size: 15px; color: #475569; margin-top: 8px; max-width: 640px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase;
+    color: #B45309; background: #FEF3C7; padding: 4px 10px; border-radius: 999px;
+    margin-bottom: 10px;
+  }
+  .eyebrow::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #D97706; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  section { margin-bottom: 44px; }
+  h2 {
+    font-size: 13px; font-weight: 700; color: #0F172A; letter-spacing: 0.3px; text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  h2 + .sec-sub {
+    font-size: 13px; color: #64748B; margin-bottom: 16px; max-width: 680px;
+  }
+
+  .embed {
+    background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04); margin-bottom: 20px;
+  }
+  .embed iframe { width: 100%; display: block; border: 0; }
+  .embed-header {
+    padding: 14px 18px 4px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  }
+  .embed-header h3 { font-size: 15px; font-weight: 600; color: #0F172A; }
+  .embed-header .desc { font-size: 12px; color: #64748B; margin-top: 2px; }
+  .embed-header a {
+    font-size: 12px; color: #2563EB; text-decoration: none; white-space: nowrap; font-weight: 500;
+  }
+  .embed-header a:hover { text-decoration: underline; }
+
+  .embed-codeblock {
+    margin-top: 22px; background: #0F172A; color: #E2E8F0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px; padding: 12px 14px; border-radius: 6px; overflow-x: auto;
+  }
+
+  footer {
+    border-top: 1px solid #E2E8F0; padding-top: 20px; margin-top: 40px;
+    font-size: 12px; color: #64748B;
+  }
+  footer a { color: #475569; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="hero">
+  <div class="eyebrow">Live on 19 April 2026</div>
+  <h1>Bulgaria 2026 — Parliamentary Election Results</h1>
+  <p class="tagline">
+    Live data from the Central Election Commission (CIK), auto-refreshed during the count.
+    Each map is embeddable as a standalone iframe — paste the snippet into any WordPress custom-HTML block
+    or your CMS and it will stay live.
+  </p>
+</header>
+
+<section>
+  <h2>During the count</h2>
+  <p class="sec-sub">Seven maps and charts that populate from the moment polls close at 20:00 EEST.</p>
+
+  <div class="embed">
+    <div class="embed-header">
+      <div><h3>Turnout trend — 2026 vs 2024</h3><div class="desc">Intraday snapshots at 11:00, 16:00, 20:00 · updates every 5 min</div></div>
+      <a href="turnout-trend.html" target="_blank">Open ↗</a>
+    </div>
+    <iframe src="turnout-trend.html" height="470"></iframe>
+  </div>
+
+  <div class="embed">
+    <div class="embed-header">
+      <div><h3>National popular vote</h3><div class="desc">Running vote share for every party on the ballot · updates every 60 s</div></div>
+      <a href="popular-vote.html" target="_blank">Open ↗</a>
+    </div>
+    <iframe src="popular-vote.html" height="600"></iframe>
+  </div>
+
+  <div class="embed">
+    <div class="embed-header">
+      <div><h3>Party list by oblast</h3><div class="desc">Winner per oblast with drill-down per party · click a party to shade by its vote share</div></div>
+      <a href="county-map.html" target="_blank">Open ↗</a>
+    </div>
+    <iframe src="county-map.html" height="640"></iframe>
+  </div>
+
+  <div class="embed">
+    <div class="embed-header">
+      <div><h3>Turnout by oblast</h3><div class="desc">Share of eligible voters who voted · choropleth · updates every 5 min</div></div>
+      <a href="turnout-map.html" target="_blank">Open ↗</a>
+    </div>
+    <iframe src="turnout-map.html" height="600"></iframe>
+  </div>
+
+  <div class="embed">
+    <div class="embed-header">
+      <div><h3>Capital · Rest · Abroad</h3><div class="desc">Sofia's three МИРs (23/24/25) vs. rest of country vs. МИР 32 abroad · three donuts</div></div>
+      <a href="breakdown.html" target="_blank">Open ↗</a>
+    </div>
+    <iframe src="breakdown.html" height="440"></iframe>
+  </div>
+
+  <div class="embed">
+    <div class="embed-header">
+      <div><h3>Oblast swing — 2024 → 2026</h3><div class="desc">Percentage-point change in each party's vote share per oblast · default view shades by biggest gainer · click a party to drill down across all 9 main parties</div></div>
+      <a href="county-swing.html" target="_blank">Open ↗</a>
+    </div>
+    <iframe src="county-swing.html" height="700"></iframe>
+  </div>
+
+  <div class="embed">
+    <div class="embed-header">
+      <div><h3>Turnout change — 2026 vs 2024</h3><div class="desc">Mobilisation signal per oblast · diverging scale showing which regions turned out more or less than in Oct 2024</div></div>
+      <a href="turnout-change.html" target="_blank">Open ↗</a>
+    </div>
+    <iframe src="turnout-change.html" height="700"></iframe>
+  </div>
+</section>
+
+<section>
+  <h2>After the count (municipality resolution)</h2>
+  <p class="sec-sub">CIK publishes per-municipality numbers only once the preliminary count is complete, 2–5 days after 19 April. These maps fill in automatically when that drop lands.</p>
+
+  <div class="embed">
+    <div class="embed-header">
+      <div><h3>Municipality results — 2026</h3><div class="desc">Winning party per município · 265 units · click a party to drill down by vote share</div></div>
+      <a href="municipality-results.html" target="_blank">Open ↗</a>
+    </div>
+    <iframe src="municipality-results.html" height="700"></iframe>
+  </div>
+
+  <div class="embed">
+    <div class="embed-header">
+      <div><h3>Municipality swing — 2024 → 2026</h3><div class="desc">Percentage-point change per municipality across all 265 units · click any of the 9 parties to drill down · shows "awaiting" state until post-count data arrives</div></div>
+      <a href="municipality-swing.html" target="_blank">Open ↗</a>
+    </div>
+    <iframe src="municipality-swing.html" height="700"></iframe>
+  </div>
+
+  <div class="embed">
+    <div class="embed-header">
+      <div><h3>Diaspora by country (МИР 32)</h3><div class="desc">World map of Bulgarian votes cast abroad · 57+ countries · shows Oct 2024 reference until the post-count aggregator writes 2026 data</div></div>
+      <a href="diaspora-map.html" target="_blank">Open ↗</a>
+    </div>
+    <iframe src="diaspora-map.html" height="700"></iframe>
+  </div>
+</section>
+
+<section>
+  <h2>Previous election reference (Oct 2024)</h2>
+  <p class="sec-sub">Final results from 27 October 2024, for comparison. Static — does not auto-refresh.</p>
+
+  <div class="embed">
+    <div class="embed-header">
+      <div><h3>Oct 2024 · Party list by oblast</h3><div class="desc">Final certified figures from the post-decision database</div></div>
+      <a href="map.html" target="_blank">Open ↗</a>
+    </div>
+    <iframe src="map.html" height="640"></iframe>
+  </div>
+
+  <div class="embed">
+    <div class="embed-header">
+      <div><h3>Oct 2024 · Party list by municipality</h3><div class="desc">265 municipalities, drill-down by party, bilingual EN/BG names</div></div>
+      <a href="map_municipalities.html" target="_blank">Open ↗</a>
+    </div>
+    <iframe src="map_municipalities.html" height="700"></iframe>
+  </div>
+</section>
+
+<section>
+  <h2>WordPress embedding</h2>
+  <p class="sec-sub">Paste any of these snippets into a Custom-HTML block. Maps auto-refresh in-place — no rebuild needed.</p>
+  <div class="embed-codeblock">
+&lt;iframe src="https://europe-elects.github.io/bulgaria-election/turnout-trend.html"  width="100%" height="470" style="border:none;"&gt;&lt;/iframe&gt;<br>
+&lt;iframe src="https://europe-elects.github.io/bulgaria-election/popular-vote.html"   width="100%" height="600" style="border:none;"&gt;&lt;/iframe&gt;<br>
+&lt;iframe src="https://europe-elects.github.io/bulgaria-election/county-map.html"    width="100%" height="640" style="border:none;"&gt;&lt;/iframe&gt;<br>
+&lt;iframe src="https://europe-elects.github.io/bulgaria-election/turnout-map.html"   width="100%" height="600" style="border:none;"&gt;&lt;/iframe&gt;<br>
+&lt;iframe src="https://europe-elects.github.io/bulgaria-election/breakdown.html"     width="100%" height="440" style="border:none;"&gt;&lt;/iframe&gt;<br>
+&lt;iframe src="https://europe-elects.github.io/bulgaria-election/county-swing.html"  width="100%" height="700" style="border:none;"&gt;&lt;/iframe&gt;<br>
+&lt;iframe src="https://europe-elects.github.io/bulgaria-election/turnout-change.html" width="100%" height="700" style="border:none;"&gt;&lt;/iframe&gt;<br>
+&lt;iframe src="https://europe-elects.github.io/bulgaria-election/municipality-results.html" width="100%" height="700" style="border:none;"&gt;&lt;/iframe&gt;<br>
+&lt;iframe src="https://europe-elects.github.io/bulgaria-election/municipality-swing.html" width="100%" height="700" style="border:none;"&gt;&lt;/iframe&gt;<br>
+&lt;iframe src="https://europe-elects.github.io/bulgaria-election/diaspora-map.html" width="100%" height="700" style="border:none;"&gt;&lt;/iframe&gt;
+  </div>
+</section>
+
+<footer>
+  · Chart made by Andrei Miclea · Source: Central Election Commission (CIK)
+</footer>
+
+</div>
+</body>
+</html>

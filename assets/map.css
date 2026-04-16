@@ -1,0 +1,116 @@
+/* Bulgaria Election Maps — shared base styles */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #F8FAFC; color: #1E293B;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.container {
+  max-width: 960px; margin: 0 auto; padding: 16px 16px 16px; width: 100%;
+  flex: 1; display: flex; flex-direction: column; min-height: 0;
+}
+.header { margin-bottom: 12px; }
+h1 { font-size: 20px; font-weight: 700; color: #0F172A; letter-spacing: -0.3px; }
+.subtitle { font-size: 13px; color: #64748B; margin-top: 2px; }
+
+.status-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.last-updated {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; color: #475569;
+  padding: 3px 8px; background: #F1F5F9; border-radius: 4px;
+}
+.last-updated::before {
+  content: ''; display: inline-block; width: 6px; height: 6px;
+  border-radius: 50%; background: #64748B;
+}
+.last-updated.live::before { background: #22C55E; animation: pulse 2s infinite; }
+.counted-pill {
+  display: none; font-size: 11px; padding: 3px 8px;
+  background: #FEF3C7; color: #92400E; border-radius: 4px; font-weight: 600;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+#map-container, .viz-container {
+  position: relative; width: 100%; overflow: hidden;
+  background: #fff; border-radius: 8px; border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  flex: 1 1 auto; min-height: 0;
+}
+svg { width: 100%; height: 100%; display: block; }
+
+.county {
+  stroke: #475569; stroke-width: 1; stroke-linejoin: round;
+  cursor: pointer; transition: opacity .2s ease; fill-rule: evenodd;
+}
+.county:hover { opacity: 0.7; stroke-width: 1.8; }
+.county-label {
+  font-family: 'Inter', sans-serif; font-size: 9px; fill: #334155;
+  text-anchor: middle; pointer-events: none; font-weight: 600;
+}
+.county-label.light { fill: #fff; paint-order: stroke; stroke: rgba(0,0,0,0.35); stroke-width: 1px; }
+.county-pct {
+  font-family: 'Inter', sans-serif; font-size: 7.5px; fill: #64748B;
+  text-anchor: middle; pointer-events: none; font-variant-numeric: tabular-nums;
+}
+.county-pct.light { fill: rgba(255,255,255,0.9); paint-order: stroke; stroke: rgba(0,0,0,0.3); stroke-width: 0.5px; }
+
+#tooltip {
+  display: none; position: absolute; background: #fff; border: 1px solid #E2E8F0;
+  border-radius: 8px; padding: 12px 16px; font-size: 12px; pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,.12); z-index: 10; min-width: 240px;
+}
+#tooltip h3 { font-size: 14px; font-weight: 600; color: #0F172A; margin-bottom: 8px; }
+#tooltip h3 .bg-name { font-size: 12px; font-weight: 400; color: #64748B; margin-left: 6px; }
+.bar-row { display: flex; align-items: center; margin-bottom: 4px; gap: 6px; }
+.bar-label { width: 150px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+.bar-container { flex: 1; height: 12px; background: #F1F5F9; border-radius: 3px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 3px; transition: width .3s ease; }
+.bar-pct { font-size: 11px; color: #64748B; width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+.no-data { color: #94A3B8; font-style: italic; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; font-size: 12px; color: #475569; }
+.legend-item {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 8px; border-radius: 6px; border: 1px solid transparent;
+  transition: background .15s, border-color .15s, box-shadow .15s;
+  user-select: none; background: transparent; font-family: inherit; font-size: inherit; color: inherit;
+}
+button.legend-item { line-height: 1.4; }
+.legend-item.clickable { cursor: pointer; border-color: #E2E8F0; }
+.legend-item.clickable:hover { border-color: #CBD5E1; background: #F8FAFC; }
+.legend-item.clickable:focus-visible {
+  outline: 2px solid #2563EB; outline-offset: 2px; border-color: #94A3B8;
+}
+.legend-item.clickable.active {
+  background: #fff; border-color: #0F172A;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  font-weight: 600; color: #0F172A;
+}
+.legend-swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+.legend-hint { font-size: 11px; color: #94A3B8; margin-top: 6px; }
+
+.cta {
+  margin-top: 12px; display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 500; color: #334155;
+  background: #F8FAFC; border: 1px solid #E2E8F0;
+  padding: 7px 12px 7px 10px; border-radius: 999px;
+  letter-spacing: -0.1px;
+}
+.cta-arrow {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #0F172A; color: #fff;
+  animation: cta-nudge 2.4s ease-in-out infinite;
+}
+.cta-arrow svg { width: 11px; height: 11px; display: block; }
+@keyframes cta-nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(2px); } }
+
+.footer { margin-top: 8px; font-size: 11px; color: #64748B; text-align: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .county { transition: none; }
+  .bar-fill { transition: none; }
+  .cta-arrow { animation: none; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } }
+}

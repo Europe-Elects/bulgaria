@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bulgaria 2026 – Capital vs Rest vs Abroad</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #F8FAFC; color: #1E293B;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.container {
+  max-width: 960px; margin: 0 auto; padding: 16px 16px 16px; width: 100%;
+  flex: 1; display: flex; flex-direction: column; min-height: 0;
+}
+
+.header { margin-bottom: 10px; }
+.subtitle { font-size: 13px; color: #64748B; }
+.last-updated {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; color: #475569; margin-top: 6px;
+  padding: 3px 8px; background: #F1F5F9; border-radius: 4px;
+}
+.last-updated::before {
+  content: ''; display: inline-block; width: 6px; height: 6px;
+  border-radius: 50%; background: #64748B;
+}
+.last-updated.live::before { background: #22C55E; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+#chart-container {
+  position: relative; width: 100%;
+  background: #fff; border-radius: 8px; border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  flex: 1 1 auto; min-height: 0;
+  padding: 14px 16px 10px;
+  display: flex; flex-direction: column;
+}
+
+.legend-row {
+  display: flex; flex-wrap: wrap; gap: 14px;
+  font-size: 12px; font-weight: 600; color: #334155;
+  margin-bottom: 8px;
+}
+.legend-row .item { display: flex; align-items: center; gap: 6px; }
+.legend-row .swatch { width: 11px; height: 11px; border-radius: 2px; }
+
+.donuts {
+  display: flex; gap: 8px; justify-content: space-around;
+  align-items: flex-start; flex: 1 1 auto; min-height: 0;
+}
+.donut-cell {
+  display: flex; flex-direction: column; align-items: center;
+  flex: 1 1 0; min-width: 0;
+}
+.donut-cell svg { width: 100%; max-width: 220px; height: auto; display: block; }
+.donut-label {
+  font-size: 13px; font-weight: 700; color: #0F172A;
+  margin-top: 4px; text-align: center; line-height: 1.2;
+  overflow-wrap: break-word; max-width: 100%;
+}
+.donut-sub {
+  font-size: 10px; color: #64748B; margin-top: 2px; text-align: center;
+  font-variant-numeric: tabular-nums; line-height: 1.2; overflow-wrap: break-word; max-width: 100%;
+}
+.donut-sub.awaiting { color: #94A3B8; font-style: italic; }
+
+@media (max-width: 480px) {
+  .donuts { gap: 4px; }
+  .donut-label { font-size: 11px; }
+  .donut-sub { font-size: 9px; }
+  .legend-row { gap: 8px; font-size: 11px; }
+}
+
+.donut-slice { transition: opacity .15s, filter .15s; cursor: pointer; }
+#chart-container.has-hover .donut-slice { opacity: 0.18; }
+#chart-container.has-hover .donut-slice.party-hover {
+  opacity: 1;
+  filter: drop-shadow(0 1px 4px rgba(15,23,42,.25));
+}
+.legend-row .item {
+  cursor: pointer; user-select: none;
+  padding: 2px 4px; border-radius: 4px;
+  transition: background .12s;
+}
+.legend-row .item:hover { background: #F1F5F9; }
+#chart-container.has-hover .legend-row .item { opacity: 0.4; }
+#chart-container.has-hover .legend-row .item.party-hover { opacity: 1; }
+
+#bdTooltip {
+  position: absolute; pointer-events: none;
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;
+  padding: 8px 12px; box-shadow: 0 6px 18px rgba(15,23,42,.15);
+  font-size: 12px; z-index: 30; min-width: 180px;
+  opacity: 0; transform: translateY(4px);
+  transition: opacity .12s, transform .12s;
+}
+#bdTooltip.visible { opacity: 1; transform: translateY(0); }
+#bdTooltip h4 {
+  font-size: 12px; font-weight: 700; color: #0F172A;
+  display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+}
+#bdTooltip h4 .swatch { width: 10px; height: 10px; border-radius: 2px; }
+#bdTooltip .row {
+  display: flex; justify-content: space-between; gap: 12px;
+  font-size: 11px; color: #475569; padding: 1px 0;
+}
+#bdTooltip .row .lbl { color: #64748B; }
+#bdTooltip .row .v { font-variant-numeric: tabular-nums; font-weight: 600; color: #0F172A; }
+#bdTooltip .row.na .v { color: #94A3B8; font-style: italic; font-weight: 400; }
+.donut-center {
+  font-size: 13px; font-weight: 700; fill: #0F172A; text-anchor: middle;
+  font-variant-numeric: tabular-nums;
+}
+.donut-center-sub {
+  font-size: 9px; fill: #94A3B8; text-anchor: middle;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.donut-placeholder-ring { fill: none; stroke: #E2E8F0; stroke-dasharray: 4 4; }
+
+.chart-footnote {
+  font-size: 10px; color: #64748B; margin-top: 6px; line-height: 1.45;
+}
+.chart-footnote strong { color: #334155; }
+
+.footer { margin-top: 8px; font-size: 11px; color: #64748B; text-align: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .donut-slice { transition: none; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="subtitle">National list vote: Capital vs Rest of the country vs Voters abroad</div>
+    <div class="last-updated" id="lastUpdated">Last updated: –</div>
+    <span id="countedPill" style="display:none; margin-left:6px; font-size:11px; padding:3px 8px; background:#FEF3C7; color:#92400E; border-radius:4px; font-weight:600;"></span>
+  </div>
+  <div id="chart-container">
+    <div class="legend-row" id="chartLegend"></div>
+    <div class="donuts" id="donuts"></div>
+    <div id="bdTooltip" role="tooltip"></div>
+  </div>
+  <div class="footer">· Chart made by Andrei Miclea · Source: Central Election Commission (CIK)</div>
+</div>
+
+<script>
+// Parties load dynamically from results_live.json — BG coalitions change cycle to cycle.
+let PARTIES = {};         // { key: { color, color2?, name } }
+let PARTY_ORDER = [];     // ordered by national_pct desc
+
+const BUCKETS = [
+  { key: 'capital',       label: 'Sofia (capital)',  sub: '3 МИРs in the capital' },
+  { key: 'restOfCountry', label: 'Rest of the country', sub: '28 other МИРs' },
+  { key: 'abroad',        label: 'Voters abroad',    sub: 'MIR 32 · counted over 5–6 days' },
+];
+
+function cssId(s) { return String(s).replace(/[^a-zA-Z0-9_-]/g, '_'); }
+
+function buildLegend() {
+  const el = document.getElementById('chartLegend');
+  el.innerHTML = PARTY_ORDER.map(key => {
+    const p = PARTIES[key];
+    const sw = p.color2
+      ? `background: linear-gradient(135deg, ${p.color} 0 50%, ${p.color2} 50% 100%)`
+      : `background:${p.color}`;
+    return `<div class="item" data-party="${key}"><div class="swatch" style="${sw}"></div>${p.name}</div>`;
+  }).join('');
+  el.querySelectorAll('.item').forEach(item => {
+    item.addEventListener('mouseenter', (e) => highlightParty(item.dataset.party, e));
+    item.addEventListener('mousemove', moveTooltip);
+    item.addEventListener('mouseleave', clearHighlight);
+  });
+}
+
+let lastBreakdown = null;
+let lastMeta = null;
+
+function highlightParty(party, event) {
+  const wrap = document.getElementById('chart-container');
+  wrap.classList.add('has-hover');
+  document.querySelectorAll('.donut-slice').forEach(s => s.classList.toggle('party-hover', s.dataset.party === party));
+  document.querySelectorAll('.legend-row .item').forEach(it => it.classList.toggle('party-hover', it.dataset.party === party));
+  showTooltip(party, event);
+}
+
+function clearHighlight() {
+  const wrap = document.getElementById('chart-container');
+  wrap.classList.remove('has-hover');
+  document.querySelectorAll('.donut-slice.party-hover').forEach(s => s.classList.remove('party-hover'));
+  document.querySelectorAll('.legend-row .item.party-hover').forEach(it => it.classList.remove('party-hover'));
+  hideTooltip();
+}
+
+function showTooltip(party, event) {
+  const tt = document.getElementById('bdTooltip');
+  const p = PARTIES[party];
+  if (!p) { hideTooltip(); return; }
+  const sw = p.color2
+    ? `background: linear-gradient(135deg, ${p.color} 0 50%, ${p.color2} 50% 100%)`
+    : `background:${p.color}`;
+  let html = `<h4><span class="swatch" style="${sw}"></span>${p.name}</h4>`;
+  for (const b of BUCKETS) {
+    const data = lastBreakdown && lastBreakdown[b.key];
+    const pct = data && typeof data[party] === 'number' ? data[party] : null;
+    if (pct === null) {
+      html += `<div class="row na"><span class="lbl">${b.label}</span><span class="v">awaiting</span></div>`;
+    } else {
+      html += `<div class="row"><span class="lbl">${b.label}</span><span class="v">${pct.toFixed(2)}%</span></div>`;
+    }
+  }
+  tt.innerHTML = html;
+  tt.classList.add('visible');
+  moveTooltip(event);
+}
+
+function hideTooltip() { document.getElementById('bdTooltip').classList.remove('visible'); }
+
+function moveTooltip(event) {
+  const tt = document.getElementById('bdTooltip');
+  const wrap = document.getElementById('chart-container');
+  const rect = wrap.getBoundingClientRect();
+  let left = event.clientX - rect.left + 12;
+  let top  = event.clientY - rect.top + 12;
+  const ttRect = tt.getBoundingClientRect();
+  if (left + ttRect.width > rect.width - 6) left = event.clientX - rect.left - ttRect.width - 12;
+  if (top + ttRect.height > rect.height - 6) top = event.clientY - rect.top - ttRect.height - 12;
+  if (left < 6) left = 6;
+  if (top < 6) top = 6;
+  tt.style.left = left + 'px';
+  tt.style.top  = top + 'px';
+}
+
+function isLightFill(hex) {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6;
+}
+
+function buildDonutSVG(container, data, labelText, subText) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const SIZE = 200;
+  const cx = SIZE / 2, cy = SIZE / 2;
+  const outerR = 82, innerR = 52;
+
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${SIZE} ${SIZE}`);
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+  // defs for coalition stripe patterns
+  const defs = document.createElementNS(ns, 'defs');
+  for (const key of PARTY_ORDER) {
+    const p = PARTIES[key]; if (!p.color2) continue;
+    const pat = document.createElementNS(ns, 'pattern');
+    pat.setAttribute('id', 'donutsplit-' + cssId(key));
+    pat.setAttribute('patternUnits', 'userSpaceOnUse');
+    pat.setAttribute('width', '6'); pat.setAttribute('height', '6');
+    pat.setAttribute('patternTransform', 'rotate(45)');
+    const r1 = document.createElementNS(ns, 'rect'); r1.setAttribute('x','0'); r1.setAttribute('y','0'); r1.setAttribute('width','3'); r1.setAttribute('height','6'); r1.setAttribute('fill', p.color);
+    const r2 = document.createElementNS(ns, 'rect'); r2.setAttribute('x','3'); r2.setAttribute('y','0'); r2.setAttribute('width','3'); r2.setAttribute('height','6'); r2.setAttribute('fill', p.color2);
+    pat.appendChild(r1); pat.appendChild(r2); defs.appendChild(pat);
+  }
+  svg.appendChild(defs);
+
+  if (!data || !Object.values(data).some(v => v > 0)) {
+    const ring = document.createElementNS(ns, 'circle');
+    ring.setAttribute('cx', cx); ring.setAttribute('cy', cy);
+    ring.setAttribute('r', (outerR + innerR) / 2);
+    ring.setAttribute('class', 'donut-placeholder-ring');
+    ring.setAttribute('stroke-width', outerR - innerR);
+    svg.appendChild(ring);
+    const centerText = document.createElementNS(ns, 'text');
+    centerText.setAttribute('x', cx); centerText.setAttribute('y', cy + 3);
+    centerText.setAttribute('class', 'donut-center-sub');
+    centerText.textContent = 'AWAITING COUNT';
+    svg.appendChild(centerText);
+    container.appendChild(svg);
+    const lbl = document.createElement('div'); lbl.className = 'donut-label'; lbl.textContent = labelText; container.appendChild(lbl);
+    const sub = document.createElement('div'); sub.className = 'donut-sub awaiting'; sub.textContent = subText; container.appendChild(sub);
+    return;
+  }
+
+  // slices ordered by PARTY_ORDER so colours stay consistent across the 3 donuts
+  const slices = PARTY_ORDER
+    .map(key => ({ party: key, pct: data[key] || 0 }))
+    .filter(s => s.pct > 0);
+
+  let startAngle = -Math.PI / 2;
+  const total = slices.reduce((sum, s) => sum + s.pct, 0);
+  for (const s of slices) {
+    const frac = s.pct / total;
+    const endAngle = startAngle + frac * Math.PI * 2;
+    const largeArc = frac > 0.5 ? 1 : 0;
+
+    const x1o = cx + outerR * Math.cos(startAngle), y1o = cy + outerR * Math.sin(startAngle);
+    const x2o = cx + outerR * Math.cos(endAngle),   y2o = cy + outerR * Math.sin(endAngle);
+    const x1i = cx + innerR * Math.cos(endAngle),   y1i = cy + innerR * Math.sin(endAngle);
+    const x2i = cx + innerR * Math.cos(startAngle), y2i = cy + innerR * Math.sin(startAngle);
+
+    const d = `M ${x1o} ${y1o}
+               A ${outerR} ${outerR} 0 ${largeArc} 1 ${x2o} ${y2o}
+               L ${x1i} ${y1i}
+               A ${innerR} ${innerR} 0 ${largeArc} 0 ${x2i} ${y2i}
+               Z`;
+
+    const p = PARTIES[s.party];
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('fill', p.color2 ? `url(#donutsplit-${cssId(s.party)})` : p.color);
+    path.setAttribute('class', 'donut-slice');
+    path.setAttribute('data-party', s.party);
+    path.addEventListener('mouseenter', (e) => highlightParty(s.party, e));
+    path.addEventListener('mousemove', moveTooltip);
+    path.addEventListener('mouseleave', clearHighlight);
+    svg.appendChild(path);
+
+    if (frac > 0.06) {
+      const midAngle = (startAngle + endAngle) / 2;
+      const midR = (outerR + innerR) / 2;
+      const lx = cx + midR * Math.cos(midAngle);
+      const ly = cy + midR * Math.sin(midAngle);
+      const label = document.createElementNS(ns, 'text');
+      label.setAttribute('x', lx); label.setAttribute('y', ly + 3);
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('font-size', '10'); label.setAttribute('font-weight', '700');
+      label.setAttribute('fill', isLightFill(p.color) ? '#0F172A' : '#ffffff');
+      label.setAttribute('pointer-events', 'none');
+      label.textContent = s.pct.toFixed(1) + '%';
+      svg.appendChild(label);
+    }
+
+    startAngle = endAngle;
+  }
+
+  container.appendChild(svg);
+  const lbl = document.createElement('div'); lbl.className = 'donut-label'; lbl.textContent = labelText; container.appendChild(lbl);
+  const sub = document.createElement('div'); sub.className = 'donut-sub'; sub.textContent = subText; container.appendChild(sub);
+}
+
+function renderChart() {
+  const wrap = document.getElementById('donuts');
+  wrap.innerHTML = '';
+  const breakdown = lastBreakdown || {};
+  for (const b of BUCKETS) {
+    const meta = (lastMeta && lastMeta[b.key]) || {};
+    const label = meta.label || b.label;
+    let sub = meta.sub || b.sub;
+    if (typeof meta.turnout === 'number') sub = sub + ' · ' + meta.turnout.toFixed(1) + '% turnout';
+    const cell = document.createElement('div');
+    cell.className = 'donut-cell';
+    buildDonutSVG(cell, breakdown[b.key], label, sub);
+    wrap.appendChild(cell);
+  }
+}
+
+function applyResults(data) {
+  const el = document.getElementById('lastUpdated');
+  el.textContent = 'Last updated: ' + new Date(data.lastUpdated).toLocaleString('en-GB', {dateStyle:'medium',timeStyle:'medium',timeZone:'Europe/Sofia'});
+
+  // Party registry: build from data.parties so the chart adapts to the cycle
+  PARTIES = {}; PARTY_ORDER = [];
+  (data.parties || []).forEach(p => {
+    PARTIES[p.key] = { color: p.color, color2: p.color2 || null, name: p.name };
+    PARTY_ORDER.push(p.key);
+  });
+  buildLegend();
+
+  lastBreakdown = data.nationalBreakdown || {};
+  lastMeta = data.nationalBreakdownMeta || {};
+  const hasAny = Object.values(lastBreakdown).some(b => b && Object.values(b).some(v => v > 0));
+  el.classList.toggle('live', hasAny && data.processingPctDomestic < 100);
+  renderChart();
+
+  const pill = document.getElementById('countedPill');
+  const pct = (typeof data.processingPctDomestic === 'number' && data.processingPctDomestic > 0) ? data.processingPctDomestic : null;
+  if (typeof pct === 'number' && pct > 0 && pct < 100) {
+    pill.style.display = 'inline-block';
+    pill.textContent = pct.toFixed(1) + '% counted (domestic)';
+  } else {
+    pill.style.display = 'none';
+  }
+}
+
+async function loadResults() {
+  try { applyResults(await (await fetch('results_live.json?' + Date.now())).json()); }
+  catch (e) { renderChart(); }
+}
+setInterval(async () => {
+  try { applyResults(await (await fetch('results_live.json?' + Date.now())).json()); }
+  catch (e) {}
+}, 60000);
+
+loadResults();
+</script>
+</body>
+</html>

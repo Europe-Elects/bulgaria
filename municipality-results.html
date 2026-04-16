@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bulgaria 2026 – Municipality Results</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #F8FAFC; color: #1E293B;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.container {
+  max-width: 960px; margin: 0 auto; padding: 16px 16px 16px; width: 100%;
+  flex: 1; display: flex; flex-direction: column; min-height: 0;
+}
+.header { margin-bottom: 12px; }
+h1 { font-size: 20px; font-weight: 700; color: #0F172A; letter-spacing: -0.3px; }
+.subtitle { font-size: 13px; color: #64748B; margin-top: 2px; }
+.last-updated {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; color: #475569; margin-top: 6px;
+  padding: 3px 8px; background: #F1F5F9; border-radius: 4px;
+}
+.last-updated::before {
+  content: ''; display: inline-block; width: 6px; height: 6px;
+  border-radius: 50%; background: #64748B;
+}
+.last-updated.live::before { background: #22C55E; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+#map-container {
+  position: relative; width: 100%; overflow: hidden;
+  background: #fff; border-radius: 8px; border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  flex: 1 1 auto; min-height: 0;
+}
+svg { width: 100%; height: 100%; display: block; }
+.county {
+  stroke: #475569; stroke-width: 1; stroke-linejoin: round;
+  cursor: pointer; transition: opacity .2s ease; fill-rule: evenodd;
+}
+.county:hover { opacity: 0.7; stroke-width: 1.8; }
+.county-label {
+  font-family: 'Inter', sans-serif; font-size: 9px; fill: #334155;
+  text-anchor: middle; pointer-events: none; font-weight: 600;
+}
+.county-label.light { fill: #fff; paint-order: stroke; stroke: rgba(0,0,0,0.35); stroke-width: 1px; }
+.county-pct {
+  font-family: 'Inter', sans-serif; font-size: 7.5px; fill: #64748B;
+  text-anchor: middle; pointer-events: none; font-variant-numeric: tabular-nums;
+}
+.county-pct.light { fill: rgba(255,255,255,0.9); paint-order: stroke; stroke: rgba(0,0,0,0.3); stroke-width: 0.5px; }
+
+#tooltip {
+  display: none; position: absolute; background: #fff; border: 1px solid #E2E8F0;
+  border-radius: 8px; padding: 12px 16px; font-size: 12px; pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,.12); z-index: 10; min-width: 260px;
+}
+#tooltip h3 { font-size: 14px; font-weight: 600; color: #0F172A; margin-bottom: 8px; }
+#tooltip h3 .bg-name {
+  font-size: 12px; font-weight: 400; color: #64748B; margin-left: 6px;
+}
+.bar-row { display: flex; align-items: center; margin-bottom: 4px; gap: 6px; }
+.bar-label { width: 150px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+.bar-container { flex: 1; height: 12px; background: #F1F5F9; border-radius: 3px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 3px; transition: width .3s ease; }
+.bar-pct { font-size: 11px; color: #64748B; width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+.no-data { color: #94A3B8; font-style: italic; }
+
+.legend {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;
+  font-size: 12px; color: #475569;
+}
+.legend-item {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 8px; border-radius: 6px; border: 1px solid transparent;
+  transition: background .15s, border-color .15s, box-shadow .15s; user-select: none;
+  background: transparent; font-family: inherit; font-size: inherit; color: inherit;
+}
+button.legend-item { line-height: 1.4; }
+.legend-item.clickable { cursor: pointer; }
+.legend-item.clickable:hover { background: #F1F5F9; border-color: #E2E8F0; }
+.legend-item.clickable:focus { outline: none; }
+.legend-item.clickable:focus-visible {
+  outline: 2px solid #2563EB; outline-offset: 2px;
+  background: #F1F5F9; border-color: #94A3B8;
+}
+.legend-item.active {
+  background: #fff; border-color: #64748B;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  font-weight: 600; color: #0F172A;
+}
+.legend-swatch { width: 12px; height: 12px; border-radius: 3px; }
+.legend-hint { font-size: 11px; color: #94A3B8; margin-top: 6px; }
+.cta {
+  margin-top: 12px; display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 500; color: #334155;
+  background: #F8FAFC; border: 1px solid #E2E8F0;
+  padding: 7px 12px 7px 10px; border-radius: 999px;
+  letter-spacing: -0.1px;
+}
+.cta-arrow {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #0F172A; color: #fff;
+  animation: cta-nudge 2.4s ease-in-out infinite;
+}
+.cta-arrow svg { width: 11px; height: 11px; display: block; }
+@keyframes cta-nudge {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cta-arrow { animation: none; }
+}
+.legend-item.clickable {
+  border-color: #E2E8F0;
+}
+.legend-item.clickable:hover { border-color: #CBD5E1; }
+.legend-item.clickable.active {
+  border-color: #0F172A;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+.footer { margin-top: 8px; font-size: 11px; color: #64748B; text-align: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .county { transition: none; }
+  .bar-fill { transition: none; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Bulgaria 2026 · Municipality Results</h1>
+    <div class="subtitle">Party list vote share across 265 municipalities · populated ~2–5 days after 19 April when CIK publishes post-count data</div>
+    <div class="last-updated" id="lastUpdated">Last updated: –</div>
+    <span id="countedPill" style="display:none; margin-left:6px; font-size:11px; padding:3px 8px; background:#FEF3C7; color:#92400E; border-radius:4px; font-weight:600;"></span>
+  </div>
+  <div id="map-container">
+    <svg id="map"></svg>
+    <div id="tooltip"></div>
+  </div>
+  <div class="cta" role="note">
+    <span class="cta-arrow" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </span>
+    <span class="cta-text">Tap a party below to shade the municipalities by its vote share</span>
+  </div>
+  <div class="legend" id="legend"></div>
+  <div class="legend-hint" id="legendHint">Click again on the active party to return to the winner view</div>
+  <div class="footer">· Chart made by Andrei Miclea · Source: Central Election Commission (CIK)</div>
+</div>
+
+<script>
+const NO_DATA_COLOR = '#E2E8F0';
+const SVG_W = 1000, SVG_H = 600;
+
+// filled in after data loads
+let PARTIES = {};                 // key -> {color, name}
+let PARTY_ORDER = [];             // display order (by national %)
+let OBLAST_NAMES = {};            // BG-id -> English name
+let OBLAST_PATHS = {};            // BG-id -> SVG d string
+let OBLAST_CENTROIDS = {};        // BG-id -> {cx, cy}
+let lastCountyData = {};
+let currentView = 'winner';
+
+function cssId(s){ return String(s).replace(/[^a-zA-Z0-9_-]/g,'_'); }
+
+/* --- geometry helpers --- */
+function bbox(features){
+  let mnx=Infinity,mny=Infinity,mxx=-Infinity,mxy=-Infinity;
+  for (const f of features) {
+    const rings = f.geometry.type==='Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
+    for (const poly of rings) for (const ring of poly) for (const [x,y] of ring) {
+      if (x<mnx)mnx=x; if (y<mny)mny=y; if (x>mxx)mxx=x; if (y>mxy)mxy=y;
+    }
+  }
+  return [mnx,mny,mxx,mxy];
+}
+function makeProjection(bx, w, h){
+  const [minLon,minLat,maxLon,maxLat] = bx;
+  const midLat = (minLat+maxLat)/2 * Math.PI/180;
+  const sx = Math.cos(midLat);
+  const lonRange = (maxLon-minLon)*sx, latRange = (maxLat-minLat);
+  const scale = Math.min(w/lonRange, h/latRange) * 0.95;
+  const ox = (w - lonRange*scale)/2, oy = (h - latRange*scale)/2;
+  return (lon,lat) => [ (lon-minLon)*sx*scale + ox, h - ((lat-minLat)*scale + oy) ];
+}
+function featurePath(f, proj){
+  const rings = f.geometry.type==='Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
+  let d = '';
+  for (const poly of rings) for (const ring of poly) {
+    d += ring.map(([lon,lat],i)=>{ const [x,y]=proj(lon,lat); return (i===0?'M':'L')+x.toFixed(1)+','+y.toFixed(1); }).join('') + 'Z';
+  }
+  return d;
+}
+function polygonCentroid(ring){
+  // area-weighted centroid of a ring in projected coords
+  let a=0, cx=0, cy=0;
+  for (let i=0,j=ring.length-1; i<ring.length; j=i++){
+    const [x0,y0]=ring[j], [x1,y1]=ring[i];
+    const f = x0*y1 - x1*y0;
+    a += f; cx += (x0+x1)*f; cy += (y0+y1)*f;
+  }
+  a *= 0.5;
+  return a===0 ? ring[0] : [cx/(6*a), cy/(6*a)];
+}
+function featureCentroid(f, proj){
+  const rings = f.geometry.type==='Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
+  // use largest ring of largest polygon
+  let best=null, bestArea=-1;
+  for (const poly of rings) {
+    const outer = poly[0].map(([lon,lat])=>proj(lon,lat));
+    let a = 0;
+    for (let i=0,j=outer.length-1; i<outer.length; j=i++){
+      a += outer[j][0]*outer[i][1] - outer[i][0]*outer[j][1];
+    }
+    a = Math.abs(a/2);
+    if (a > bestArea) { bestArea=a; best=outer; }
+  }
+  const [cx,cy] = polygonCentroid(best);
+  return { cx, cy };
+}
+
+/* --- color helpers --- */
+function hexToRgb(hex){ const h=hex.replace('#',''); return {r:parseInt(h.slice(0,2),16),g:parseInt(h.slice(2,4),16),b:parseInt(h.slice(4,6),16)}; }
+function parseRgb(str){ if(!str) return null; if(str.startsWith('#')) return hexToRgb(str); const m=str.match(/\d+/g); return m?{r:+m[0],g:+m[1],b:+m[2]}:null; }
+function isLightFill(fill){ const c=parseRgb(fill); if(!c) return true; const lum=(0.299*c.r+0.587*c.g+0.114*c.b)/255; return lum > 0.62; }
+function partyShade(pct, maxPct, baseHex){
+  if (pct === null || pct === undefined || pct <= 0) return NO_DATA_COLOR;
+  const t = Math.max(0, Math.min(1, pct / Math.max(maxPct, 0.01)));
+  const b = hexToRgb(baseHex);
+  const r = Math.round(255 + (b.r - 255) * t);
+  const g = Math.round(255 + (b.g - 255) * t);
+  const bl = Math.round(255 + (b.b - 255) * t);
+  return `rgb(${r},${g},${bl})`;
+}
+function partyMaxPct(data, party){
+  let mx = 0;
+  for (const d of Object.values(data || {})) {
+    if (d && typeof d[party] === 'number' && d[party] > mx) mx = d[party];
+  }
+  return Math.max(10, mx * 1.1);
+}
+const META_KEYS = new Set(['name', 'name_en']);
+function getWinner(d){
+  if (!d) return null;
+  let max=0, w=null;
+  for (const [p,v] of Object.entries(d)) {
+    if (META_KEYS.has(p)) continue;
+    if (typeof v==='number' && v>max) { max=v; w=p; }
+  }
+  return max>0 ? {party:w, pct:max} : null;
+}
+function hasData(d){
+  if (!d) return false;
+  return Object.entries(d).some(([k,v]) => !META_KEYS.has(k) && typeof v==='number' && v>0);
+}
+
+/* --- draw --- */
+function buildMap(countyData){
+  const svg = document.getElementById('map');
+  const ns = 'http://www.w3.org/2000/svg';
+  svg.setAttribute('viewBox', `0 0 ${SVG_W} ${SVG_H}`);
+  svg.innerHTML = '';
+
+  // SVG <defs> with diagonal-stripe patterns for split-color (coalition) parties
+  const defs = document.createElementNS(ns, 'defs');
+  for (const [key, p] of Object.entries(PARTIES)) {
+    if (!p.color2) continue;
+    const pat = document.createElementNS(ns, 'pattern');
+    pat.setAttribute('id', 'split-' + cssId(key));
+    pat.setAttribute('patternUnits', 'userSpaceOnUse');
+    pat.setAttribute('width', '10');
+    pat.setAttribute('height', '10');
+    pat.setAttribute('patternTransform', 'rotate(45)');
+    const r1 = document.createElementNS(ns, 'rect');
+    r1.setAttribute('x','0'); r1.setAttribute('y','0'); r1.setAttribute('width','5'); r1.setAttribute('height','10');
+    r1.setAttribute('fill', p.color);
+    const r2 = document.createElementNS(ns, 'rect');
+    r2.setAttribute('x','5'); r2.setAttribute('y','0'); r2.setAttribute('width','5'); r2.setAttribute('height','10');
+    r2.setAttribute('fill', p.color2);
+    pat.appendChild(r1); pat.appendChild(r2);
+    defs.appendChild(pat);
+  }
+  svg.appendChild(defs);
+
+  const partyMode = currentView !== 'winner';
+  const maxForParty = partyMode ? partyMaxPct(countyData, currentView) : 0;
+  const partyBaseColor = partyMode ? PARTIES[currentView].color : null;
+
+  const ids = Object.keys(OBLAST_PATHS);
+
+  // pass 1: fills
+  ids.forEach(id => {
+    const data = countyData[id];
+    let fillColor;
+    if (partyMode) {
+      const pct = (data && typeof data[currentView] === 'number') ? data[currentView] : null;
+      fillColor = partyShade(pct, maxForParty, partyBaseColor);
+    } else {
+      const winner = getWinner(data);
+      if (winner && PARTIES[winner.party]) {
+        const pw = PARTIES[winner.party];
+        fillColor = pw.color2 ? `url(#split-${cssId(winner.party)})` : pw.color;
+      } else fillColor = NO_DATA_COLOR;
+    }
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', OBLAST_PATHS[id]);
+    path.setAttribute('class', 'county');
+    path.setAttribute('fill', fillColor);
+    path.addEventListener('mouseenter', e => showTooltip(e, id, data));
+    path.addEventListener('mousemove', moveTooltip);
+    path.addEventListener('mouseleave', hideTooltip);
+    svg.appendChild(path);
+  });
+
+  // pass 2: labels — skipped for municipality map (too dense)
+  if (false) {
+  ids.forEach(id => {
+    const data = countyData[id];
+    const {cx, cy} = OBLAST_CENTROIDS[id];
+    let fillColor, primary;
+    if (partyMode) {
+      const pct = (data && typeof data[currentView] === 'number') ? data[currentView] : null;
+      fillColor = partyShade(pct, maxForParty, partyBaseColor);
+      primary = (pct !== null && pct > 0) ? pct : null;
+    } else {
+      const winner = getWinner(data);
+      if (winner && PARTIES[winner.party]) {
+        const pw = PARTIES[winner.party];
+        // for luminance detection on split patterns, use the primary colour
+        fillColor = pw.color2 ? pw.color : pw.color;
+      } else fillColor = NO_DATA_COLOR;
+      primary = winner ? winner.pct : null;
+    }
+    const light = isLightFill(fillColor);
+    const name = OBLAST_NAMES[id] || id;
+
+    const t = document.createElementNS(ns, 'text');
+    t.setAttribute('x', cx);
+    t.setAttribute('y', cy + (primary !== null ? -3 : 3));
+    t.setAttribute('class', 'county-label' + (light ? '' : ' light'));
+    t.textContent = name;
+    svg.appendChild(t);
+
+    if (primary !== null) {
+      const p = document.createElementNS(ns, 'text');
+      p.setAttribute('x', cx);
+      p.setAttribute('y', cy + 8);
+      p.setAttribute('class', 'county-pct' + (light ? '' : ' light'));
+      p.textContent = primary.toFixed(1) + '%';
+      svg.appendChild(p);
+    }
+  });
+  }
+}
+
+/* --- tooltip --- */
+function showTooltip(e, id, data){
+  const tt = document.getElementById('tooltip');
+  const bg = OBLAST_NAMES[id] || id;
+  const en = (data && data.name_en) ? data.name_en : null;
+  const heading = en
+    ? `<h3>${en} <span class="bg-name">${bg}</span></h3>`
+    : `<h3>${bg}</h3>`;
+  let html = heading;
+  if (data && hasData(data)) {
+    Object.entries(data).sort((a,b)=>b[1]-a[1]).forEach(([party,pct])=>{
+      if (!PARTIES[party]) return;
+      const col = PARTIES[party].color;
+      const active = currentView === party;
+      html += `<div class="bar-row" style="${active?'font-weight:700;':''}">
+        <div class="bar-label" style="color:${col}">${party}${active?' ●':''}</div>
+        <div class="bar-container"><div class="bar-fill" style="width:${pct}%;background:${col}"></div></div>
+        <div class="bar-pct">${pct.toFixed(1)}%</div></div>`;
+    });
+  } else {
+    html += '<div class="no-data">No data</div>';
+  }
+  tt.innerHTML = html;
+  tt.style.display = 'block';
+  moveTooltip(e);
+}
+function moveTooltip(e){
+  const tt = document.getElementById('tooltip');
+  const rect = document.getElementById('map-container').getBoundingClientRect();
+  let left = e.clientX - rect.left + 15;
+  if (left + 270 > rect.width) left = e.clientX - rect.left - 270;
+  tt.style.left = left + 'px';
+  tt.style.top = (e.clientY - rect.top - 10) + 'px';
+}
+function hideTooltip(){ document.getElementById('tooltip').style.display = 'none'; }
+
+/* --- legend --- */
+function buildLegend(){
+  const lg = document.getElementById('legend');
+  lg.innerHTML = '';
+  lg.setAttribute('role', 'group');
+  lg.setAttribute('aria-label', 'Party drill-down selector');
+  for (const key of PARTY_ORDER) {
+    const p = PARTIES[key];
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'legend-item clickable' + (currentView === key ? ' active' : '');
+    item.dataset.party = key;
+    item.setAttribute('aria-pressed', currentView === key ? 'true' : 'false');
+    const swatchBg = p.color2
+      ? `linear-gradient(135deg, ${p.color} 0 50%, ${p.color2} 50% 100%)`
+      : p.color;
+    item.innerHTML = `<div class="legend-swatch" style="background:${swatchBg}"></div>${p.name}`;
+    item.addEventListener('click', () => {
+      currentView = (currentView === key) ? 'winner' : key;
+      updateActive(); updateHint(); buildMap(lastCountyData);
+    });
+    lg.appendChild(item);
+  }
+  const nd = document.createElement('div');
+  nd.className = 'legend-item';
+  nd.innerHTML = `<div class="legend-swatch" style="background:${NO_DATA_COLOR}"></div>No data`;
+  lg.appendChild(nd);
+}
+function updateActive(){
+  document.querySelectorAll('.legend-item.clickable').forEach(el => {
+    const a = el.dataset.party === currentView;
+    el.classList.toggle('active', a);
+    el.setAttribute('aria-pressed', a ? 'true' : 'false');
+  });
+}
+function updateHint(){
+  const hint = document.getElementById('legendHint');
+  if (currentView === 'winner') hint.textContent = "Click a party to shade municipalities by that party's vote share";
+  else hint.textContent = `Showing ${PARTIES[currentView].name} vote share by municipality — click again to return to winner view`;
+}
+
+/* --- load --- */
+function apply(data){
+  const el = document.getElementById('lastUpdated');
+  el.textContent = 'Last updated: ' + new Date(data.lastUpdated).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'});
+  const countyData = data.municipalityList || {};
+  lastCountyData = countyData;
+  el.classList.toggle('live', Object.values(countyData).some(d=>hasData(d)));
+  buildMap(countyData);
+  const pill = document.getElementById('countedPill');
+  const pct = data.processingPctDomestic;
+  if (typeof pct === 'number' && pct > 0 && pct < 100) {
+    pill.style.display = 'inline-block';
+    pill.textContent = pct.toFixed(1) + '% counted';
+  } else { pill.style.display = 'none'; }
+}
+
+(async function(){
+  const [geo, data] = await Promise.all([
+    fetch('bg-municipalities.json').then(r=>r.json()),
+    fetch('results_live_municipalities.json?' + Date.now()).then(r=>r.json()),
+  ]);
+
+  // index geometry
+  const bx = bbox(geo.features);
+  const proj = makeProjection(bx, SVG_W, SVG_H);
+  geo.features.forEach(f => {
+    const id = f.properties.nuts4 || f.properties.id;
+    OBLAST_NAMES[id] = f.properties.name;
+    OBLAST_PATHS[id] = featurePath(f, proj);
+    OBLAST_CENTROIDS[id] = featureCentroid(f, proj);
+  });
+
+  // index parties (ordered by national %)
+  for (const p of data.parties) {
+    PARTIES[p.key] = { color: p.color, color2: p.color2 || null, name: p.name };
+    PARTY_ORDER.push(p.key);
+  }
+
+  buildLegend(); updateHint();
+  apply(data);
+})();
+</script>
+</body>
+</html>

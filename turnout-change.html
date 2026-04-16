@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bulgaria 2026 – Turnout change vs 2024</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/map.css">
+<style>
+  .gradient-row {
+    display: flex; align-items: center; gap: 10px; margin-top: 10px;
+    font-size: 11px; color: #64748B; font-variant-numeric: tabular-nums;
+  }
+  .gradient-bar {
+    flex: 1; max-width: 420px; height: 12px; border-radius: 3px;
+    border: 1px solid #E2E8F0;
+    background: linear-gradient(to right,
+      #B91C1C 0%, #DC2626 10%, #F87171 25%, #FECACA 42%,
+      #F8FAFC 50%,
+      #BFDBFE 58%, #60A5FA 75%, #2563EB 90%, #1E3A8A 100%);
+  }
+  .empty-overlay {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    pointer-events: none; font-size: 12px; color: #94A3B8; font-style: italic; text-align: center;
+    padding: 20px;
+  }
+  .mobil-strip {
+    margin-top: 10px; padding: 10px 14px;
+    background: #fff; border-radius: 8px; border: 1px solid #E2E8F0;
+    display: flex; gap: 20px; flex-wrap: wrap; align-items: center;
+    font-size: 12px; color: #475569;
+  }
+  .mobil-strip .big {
+    font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .mobil-strip .big.pos { color: #1D4ED8; }
+  .mobil-strip .big.neg { color: #B91C1C; }
+  .mobil-strip .label { font-size: 11px; font-weight: 600; color: #475569; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Bulgaria 2026 · Turnout change vs Oct 2024</h1>
+    <div class="subtitle">Mobilisation signal per oblast — percentage-point change in turnout at the same snapshot time as 2024's final</div>
+    <div class="status-row">
+      <span class="last-updated" id="lastUpdated">Last updated: –</span>
+      <span class="counted-pill" id="countedPill"></span>
+    </div>
+  </div>
+  <div id="map-container">
+    <svg id="map" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet"></svg>
+    <div id="tooltip"></div>
+    <div class="empty-overlay" id="emptyOverlay" style="display:none"></div>
+  </div>
+  <div class="mobil-strip" id="mobStrip">
+    <div>
+      <div class="label">National turnout change vs 2024</div>
+      <div class="big" id="natDelta">—</div>
+    </div>
+    <div>
+      <div class="label">Most-mobilised oblast</div>
+      <div id="topMob">—</div>
+    </div>
+    <div>
+      <div class="label">Least-mobilised oblast</div>
+      <div id="botMob">—</div>
+    </div>
+  </div>
+  <div class="gradient-row">
+    <span>−10 pp</span>
+    <div class="gradient-bar"></div>
+    <span>+10 pp</span>
+  </div>
+  <div class="footer">· Chart made by Andrei Miclea · Source: Central Election Commission (CIK)</div>
+</div>
+
+<script src="assets/map-utils.js"></script>
+<script>
+(function () {
+  const { bbox, makeProjection, featurePath, featureCentroid, isLightFill,
+          loadResults, autoRefresh, formatTs, setCountedPill, setLiveDot } = window.EE;
+  const SVG_W = 1000, SVG_H = 600;
+  const NO_DATA = '#E2E8F0';
+
+  const NAMES = {}, PATHS = {}, CENTROIDS = {};
+  let BASELINE = null;
+  let live2026 = {};        // BG-id -> current turnout %
+  let nat2026 = null;       // latest national snapshot %
+  const NAT_2024 = 38.94;
+
+  // Diverging scale: red (drop) → white (0) → blue (rise), anchored at ±10 pp
+  function deltaShade(d) {
+    if (d === null || d === undefined) return NO_DATA;
+    const t = Math.max(-1, Math.min(1, d / 10));
+    if (Math.abs(t) < 0.01) return '#F8FAFC';
+    // stops from CSS gradient
+    const stops = t < 0
+      ? [[0, [185, 28, 28]], [0.2, [220, 38, 38]], [0.5, [248, 113, 113]], [0.84, [254, 202, 202]], [1, [248, 250, 252]]]
+      : [[0, [248, 250, 252]], [0.16, [191, 219, 254]], [0.5, [96, 165, 250]], [0.8, [37, 99, 235]], [1, [30, 58, 138]]];
+    const x = t < 0 ? 1 - (-t) : t;
+    for (let i = 0; i < stops.length - 1; i++) {
+      const [a, ca] = stops[i], [b, cb] = stops[i + 1];
+      if (x >= a && x <= b) {
+        const k = (x - a) / (b - a);
+        return `rgb(${Math.round(ca[0] + (cb[0]-ca[0])*k)},${Math.round(ca[1]+(cb[1]-ca[1])*k)},${Math.round(ca[2]+(cb[2]-ca[2])*k)})`;
+      }
+    }
+    return '#F8FAFC';
+  }
+
+  async function init() {
+    const [geo, baseline] = await Promise.all([
+      fetch('bg.json').then(r => r.json()),
+      fetch('baseline_turnout_2024.json').then(r => r.json()),
+    ]);
+    BASELINE = baseline.oblast_final_turnout_2024;
+
+    const bx = bbox(geo.features);
+    const proj = makeProjection(bx, SVG_W, SVG_H);
+    geo.features.forEach(f => {
+      const id = f.properties.id;
+      NAMES[id] = f.properties.name;
+      PATHS[id] = featurePath(f, proj);
+      CENTROIDS[id] = featureCentroid(f, proj);
+    });
+    if (CENTROIDS.BG22 && CENTROIDS.BG23) {
+      CENTROIDS.BG23 = { cx: CENTROIDS.BG22.cx + 50, cy: CENTROIDS.BG22.cy - 30 };
+    }
+
+    await refresh();
+    autoRefresh(refresh, 300000);
+  }
+
+  async function refresh() {
+    const d = await loadResults('results_live.json');
+    document.getElementById('lastUpdated').textContent = 'Last updated: ' + formatTs(d.lastUpdated);
+    setLiveDot(document.getElementById('lastUpdated'), d.processingPctDomestic > 0 && d.processingPctDomestic < 100);
+    setCountedPill(document.getElementById('countedPill'), d.processingPctDomestic);
+
+    live2026 = {};
+    for (const [id, row] of Object.entries(d.oblastList || {})) {
+      if (typeof row.turnout === 'number' && row.turnout > 0) live2026[id] = row.turnout;
+    }
+    // Take national from the latest snapshot (20:00 > 16:00 > 11:00)
+    const hist = (d.turnout && d.turnout.nationalHistory) || {};
+    nat2026 = null;
+    for (const t of ['20:00', '16:00', '11:00']) {
+      if (typeof hist[t] === 'number' && hist[t] > 0) { nat2026 = hist[t]; break; }
+    }
+    render();
+  }
+
+  function render() {
+    const svg = document.getElementById('map');
+    const ns = 'http://www.w3.org/2000/svg';
+    svg.innerHTML = '';
+
+    const ids = Object.keys(PATHS);
+    const deltas = {};
+    ids.forEach(id => {
+      const b = BASELINE[id], c = live2026[id];
+      if (typeof b === 'number' && typeof c === 'number') deltas[id] = +(c - b).toFixed(2);
+    });
+
+    ids.forEach(id => {
+      const d = deltas[id];
+      const fill = (d === undefined) ? NO_DATA : deltaShade(d);
+      const p = document.createElementNS(ns, 'path');
+      p.setAttribute('d', PATHS[id]); p.setAttribute('class', 'county'); p.setAttribute('fill', fill);
+      p.addEventListener('mouseenter', e => showTooltip(e, id));
+      p.addEventListener('mousemove', moveTooltip);
+      p.addEventListener('mouseleave', () => document.getElementById('tooltip').style.display = 'none');
+      svg.appendChild(p);
+    });
+    ids.forEach(id => {
+      const d = deltas[id];
+      const fill = (d === undefined) ? NO_DATA : deltaShade(d);
+      const light = isLightFill(fill);
+      const { cx, cy } = CENTROIDS[id];
+      const t = document.createElementNS(ns, 'text');
+      t.setAttribute('x', cx); t.setAttribute('y', cy + (d !== undefined ? -3 : 3));
+      t.setAttribute('class', 'county-label' + (light ? '' : ' light'));
+      t.textContent = NAMES[id] || id;
+      svg.appendChild(t);
+      if (d !== undefined) {
+        const pc = document.createElementNS(ns, 'text');
+        pc.setAttribute('x', cx); pc.setAttribute('y', cy + 8);
+        pc.setAttribute('class', 'county-pct' + (light ? '' : ' light'));
+        pc.textContent = (d > 0 ? '+' : '') + d.toFixed(1) + 'pp';
+        svg.appendChild(pc);
+      }
+    });
+
+    // Overlay + summary strip
+    const overlay = document.getElementById('emptyOverlay');
+    if (Object.keys(deltas).length === 0) {
+      overlay.style.display = 'flex';
+      overlay.textContent = 'Awaiting 2026 turnout data. Mobilisation signal appears from the 11:00 EEST snapshot onward.';
+    } else {
+      overlay.style.display = 'none';
+    }
+
+    // Summary: national delta + top/bottom oblasts
+    const nat = document.getElementById('natDelta');
+    if (typeof nat2026 === 'number') {
+      const nd = +(nat2026 - NAT_2024).toFixed(2);
+      nat.textContent = (nd > 0 ? '+' : '') + nd.toFixed(2) + ' pp';
+      nat.className = 'big ' + (nd > 0 ? 'pos' : nd < 0 ? 'neg' : '');
+    } else {
+      nat.textContent = '—';
+      nat.className = 'big';
+    }
+    const entries = Object.entries(deltas);
+    const topEl = document.getElementById('topMob');
+    const botEl = document.getElementById('botMob');
+    if (entries.length === 0) {
+      topEl.textContent = '—';
+      botEl.textContent = '—';
+    } else {
+      const sorted = entries.slice().sort((a, b) => b[1] - a[1]);
+      const top = sorted[0], bot = sorted[sorted.length - 1];
+      topEl.innerHTML = `<strong>${NAMES[top[0]] || top[0]}</strong> <span style="color:#1D4ED8;font-weight:600">${top[1] > 0 ? '+' : ''}${top[1].toFixed(2)} pp</span>`;
+      botEl.innerHTML = `<strong>${NAMES[bot[0]] || bot[0]}</strong> <span style="color:#B91C1C;font-weight:600">${bot[1] > 0 ? '+' : ''}${bot[1].toFixed(2)} pp</span>`;
+    }
+  }
+
+  function showTooltip(e, id) {
+    const tt = document.getElementById('tooltip');
+    const b = BASELINE[id], c = live2026[id];
+    let body;
+    if (typeof b === 'number' && typeof c === 'number') {
+      const d = +(c - b).toFixed(2);
+      const color = d > 0 ? '#1D4ED8' : d < 0 ? '#B91C1C' : '#334155';
+      body = `
+        <div class="bar-row"><div class="bar-label">Oct 2024 final</div><div class="bar-pct">${b.toFixed(2)}%</div></div>
+        <div class="bar-row"><div class="bar-label">2026 latest</div><div class="bar-pct">${c.toFixed(2)}%</div></div>
+        <div class="bar-row"><div class="bar-label"><strong>Change</strong></div><div class="bar-pct" style="color:${color};font-weight:700">${d > 0 ? '+' : ''}${d.toFixed(2)} pp</div></div>`;
+    } else {
+      body = `<div class="bar-row"><div class="bar-label">Oct 2024 final</div><div class="bar-pct">${typeof b === 'number' ? b.toFixed(2) + '%' : '—'}</div></div>
+              <div class="bar-row"><div class="bar-label">2026 latest</div><div class="bar-pct">—</div></div>`;
+    }
+    tt.innerHTML = `<h3>${NAMES[id] || id}</h3>${body}`;
+    tt.style.display = 'block';
+    moveTooltip(e);
+  }
+  function moveTooltip(e) {
+    const tt = document.getElementById('tooltip');
+    const rect = document.getElementById('map-container').getBoundingClientRect();
+    let left = e.clientX - rect.left + 15;
+    if (left + 260 > rect.width) left = e.clientX - rect.left - 260;
+    tt.style.left = left + 'px'; tt.style.top = (e.clientY - rect.top - 10) + 'px';
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

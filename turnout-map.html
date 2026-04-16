@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bulgaria 2026 – Turnout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/map.css">
+<style>
+  .tabs {
+    display: flex; gap: 4px; margin-bottom: 8px;
+    background: #F1F5F9; padding: 4px; border-radius: 8px;
+    border: 1px solid #E2E8F0;
+  }
+  .tab {
+    flex: 1; padding: 8px 14px; border: none; background: transparent;
+    font-family: inherit; font-size: 13px; font-weight: 600; color: #64748B;
+    border-radius: 6px; cursor: pointer; transition: background .15s, color .15s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .tab:hover { color: #0F172A; }
+  .tab.active { background: #fff; color: #0F172A; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+  .tab .count { font-weight: 500; color: #94A3B8; font-variant-numeric: tabular-nums; }
+  .tab.active .count { color: #64748B; }
+
+  #map-container.panning svg { cursor: grabbing; }
+
+  .zoom-controls {
+    position: absolute; bottom: 12px; right: 12px; display: flex; flex-direction: column; gap: 4px; z-index: 5;
+  }
+  .zoom-btn {
+    width: 32px; height: 32px; border: 1px solid #E2E8F0; border-radius: 6px;
+    background: #fff; color: #475569; font-size: 16px; font-weight: 600;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,.1); transition: background .15s, color .15s;
+    line-height: 1; user-select: none;
+  }
+  .zoom-btn:hover { background: #F1F5F9; color: #0F172A; }
+  .zoom-btn.reset { font-size: 11px; font-weight: 500; }
+  .zoom-level { font-size: 10px; color: #94A3B8; text-align: center; padding: 2px 0; font-variant-numeric: tabular-nums; user-select: none; }
+
+  .national-summary {
+    margin-top: 10px; padding: 12px 16px;
+    background: #fff; border-radius: 8px; border: 1px solid #E2E8F0;
+    display: flex; gap: 18px; flex-wrap: wrap; align-items: center;
+  }
+  .national-summary .label { font-size: 12px; font-weight: 600; color: #475569; }
+  .national-summary .big-number {
+    font-size: 22px; font-weight: 700; color: #0F172A;
+    font-variant-numeric: tabular-nums; line-height: 1;
+  }
+  .national-summary .voters-info { font-size: 11px; color: #94A3B8; font-variant-numeric: tabular-nums; }
+  .national-summary .report-time {
+    font-size: 11px; color: #64748B; margin-left: auto;
+    padding: 4px 10px; background: #F1F5F9; border-radius: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .legend-gradient-row {
+    display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px;
+    font-size: 12px; color: #475569; align-items: center;
+  }
+  .legend-gradient-row .gradient-bar {
+    flex: 1; height: 12px; border-radius: 3px; max-width: 420px;
+    background: linear-gradient(to right,
+      #FEF3C7 0%, #FDE68A 15%, #FCD34D 30%, #F59E0B 45%,
+      #D97706 60%, #B45309 75%, #92400E 90%, #78350F 100%);
+    border: 1px solid #E2E8F0;
+  }
+  .legend-gradient-row .g-label { font-size: 11px; color: #475569; font-variant-numeric: tabular-nums; }
+  .legend-gradient-row .no-data-item { display: flex; align-items: center; gap: 5px; }
+  .legend-gradient-row .no-data-item .sw { width: 12px; height: 12px; border-radius: 3px; background: #E2E8F0; }
+
+  .empty-overlay {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    pointer-events: none; font-size: 12px; color: #94A3B8; font-style: italic; text-align: center;
+    padding: 20px;
+  }
+  #tooltip h3 .bg-name { font-size: 12px; font-weight: 400; color: #64748B; margin-left: 6px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Bulgaria 2026 · Turnout</h1>
+    <div class="subtitle" id="subtitle">Voter turnout by oblast (28) — three snapshots per day at 11:00, 16:00 and final after 20:00 (EEST)</div>
+    <div class="status-row">
+      <span class="last-updated" id="lastUpdated">Last updated: –</span>
+      <span class="counted-pill" id="countedPill"></span>
+    </div>
+  </div>
+  <div class="tabs" role="tablist" aria-label="Turnout layer">
+    <button class="tab active" role="tab" aria-selected="true" data-layer="oblast">
+      Oblasts <span class="count">28</span>
+    </button>
+    <button class="tab" role="tab" aria-selected="false" data-layer="muni">
+      Municipalities <span class="count">265</span>
+    </button>
+  </div>
+  <div id="map-container">
+    <svg id="map" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet"></svg>
+    <div id="tooltip"></div>
+    <div class="empty-overlay" id="emptyOverlay" style="display:none"></div>
+    <div class="zoom-controls">
+      <button class="zoom-btn" id="zoomIn" title="Zoom in">+</button>
+      <div class="zoom-level" id="zoomLevel">1x</div>
+      <button class="zoom-btn" id="zoomOut" title="Zoom out">−</button>
+      <button class="zoom-btn reset" id="zoomReset" title="Reset view">↺</button>
+    </div>
+  </div>
+  <div class="national-summary" id="nationalSummary">
+    <span class="label">National turnout:</span>
+    <span class="voters-info">Awaiting first report (11:00 EEST)</span>
+  </div>
+  <div class="legend-gradient-row">
+    <span class="g-label">0%</span>
+    <div class="gradient-bar"></div>
+    <span class="g-label">100%</span>
+    <div class="no-data-item"><div class="sw"></div>No data</div>
+  </div>
+  <div class="footer">· Chart made by Andrei Miclea · Source: Central Election Commission (CIK)</div>
+</div>
+
+<script src="assets/map-utils.js"></script>
+<script>
+(function () {
+  const { bbox, makeProjection, featurePath, featureCentroid, isLightFill,
+          loadResults, autoRefresh, formatTs, setCountedPill, setLiveDot } = window.EE;
+  const SVG_W = 1000, SVG_H = 600;
+  const NO_DATA_COLOR = '#E2E8F0';
+
+  const COLOR_STOPS = [
+    { pct: 0,  color: [254, 243, 199] },
+    { pct: 15, color: [253, 230, 138] },
+    { pct: 30, color: [252, 211,  77] },
+    { pct: 45, color: [245, 158,  11] },
+    { pct: 60, color: [217, 119,   6] },
+    { pct: 75, color: [180,  83,   9] },
+    { pct: 85, color: [146,  64,  14] },
+    { pct: 95, color: [120,  53,  15] },
+  ];
+  function turnoutColor(pct) {
+    if (pct === null || pct === undefined || pct === 0) return NO_DATA_COLOR;
+    for (let i = 0; i < COLOR_STOPS.length - 1; i++) {
+      const a = COLOR_STOPS[i], b = COLOR_STOPS[i + 1];
+      if (pct >= a.pct && pct <= b.pct) {
+        const t = (pct - a.pct) / (b.pct - a.pct);
+        const r = Math.round(a.color[0] + (b.color[0] - a.color[0]) * t);
+        const g = Math.round(a.color[1] + (b.color[1] - a.color[1]) * t);
+        const bl = Math.round(a.color[2] + (b.color[2] - a.color[2]) * t);
+        return `rgb(${r},${g},${bl})`;
+      }
+    }
+    const last = COLOR_STOPS[COLOR_STOPS.length - 1].color;
+    return `rgb(${last[0]},${last[1]},${last[2]})`;
+  }
+
+  let currentLayer = 'oblast';
+  try {
+    const saved = localStorage.getItem('bgTurnoutLayer');
+    if (saved === 'oblast' || saved === 'muni') currentLayer = saved;
+  } catch (e) {}
+
+  const OBLAST = { paths: {}, centroids: {}, names: {}, loaded: false };
+  const MUNI   = { paths: {}, centroids: {}, names: {}, nameEn: {}, loaded: false };
+
+  let oblastTurnout = {};
+  let muniTurnout = {};
+
+  async function loadOblastGeom() {
+    if (OBLAST.loaded) return;
+    const geo = await fetch('bg.json').then(r => r.json());
+    const bx = bbox(geo.features);
+    const proj = makeProjection(bx, SVG_W, SVG_H);
+    geo.features.forEach(f => {
+      const id = f.properties.id;
+      OBLAST.names[id] = f.properties.name;
+      OBLAST.paths[id] = featurePath(f, proj);
+      OBLAST.centroids[id] = featureCentroid(f, proj);
+    });
+    if (OBLAST.centroids.BG22 && OBLAST.centroids.BG23) {
+      OBLAST.centroids.BG23 = { cx: OBLAST.centroids.BG22.cx + 50, cy: OBLAST.centroids.BG22.cy - 30 };
+    }
+    OBLAST.loaded = true;
+  }
+  async function loadMuniGeom() {
+    if (MUNI.loaded) return;
+    const geo = await fetch('bg-municipalities.json').then(r => r.json());
+    const bx = bbox(geo.features);
+    const proj = makeProjection(bx, SVG_W, SVG_H);
+    geo.features.forEach(f => {
+      const id = f.properties.nuts4 || f.properties.id;
+      MUNI.names[id] = f.properties.name;
+      MUNI.paths[id] = featurePath(f, proj);
+      MUNI.centroids[id] = featureCentroid(f, proj);
+    });
+    try {
+      const baseline = await fetch('baseline_2024_municipalities.json').then(r => r.json());
+      for (const [id, row] of Object.entries(baseline)) {
+        if (row.name_en) MUNI.nameEn[id] = row.name_en;
+      }
+    } catch (e) {}
+    MUNI.loaded = true;
+  }
+
+  async function refresh() {
+    const d = await loadResults('results_live.json');
+    const el = document.getElementById('lastUpdated');
+    el.textContent = 'Last updated: ' + formatTs(d.lastUpdated);
+    setLiveDot(el, d.processingPctDomestic > 0 && d.processingPctDomestic < 100);
+    setCountedPill(document.getElementById('countedPill'), d.processingPctDomestic);
+
+    oblastTurnout = {};
+    for (const [id, row] of Object.entries(d.oblastList || {})) {
+      if (typeof row.turnout === 'number') oblastTurnout[id] = row.turnout;
+    }
+    muniTurnout = d.municipalityTurnout || {};
+
+    render();
+    updateNational(d);
+  }
+
+  function render() {
+    const svg = document.getElementById('map');
+    const ns = 'http://www.w3.org/2000/svg';
+    svg.innerHTML = '';
+
+    const layer = currentLayer === 'muni' ? MUNI : OBLAST;
+    const data = currentLayer === 'muni' ? muniTurnout : oblastTurnout;
+
+    if (zoomState.baseW === 0) {
+      zoomState.baseW = SVG_W; zoomState.baseH = SVG_H;
+      zoomState.vbX = 0; zoomState.vbY = 0;
+      zoomState.vbW = SVG_W; zoomState.vbH = SVG_H;
+      zoomState.scale = 1;
+    }
+    applyViewBox();
+
+    const ids = Object.keys(layer.paths);
+    let hasAny = false;
+
+    ids.forEach(id => {
+      const t = data[id];
+      const fill = turnoutColor(typeof t === 'number' ? t : null);
+      if (typeof t === 'number' && t > 0) hasAny = true;
+      const p = document.createElementNS(ns, 'path');
+      p.setAttribute('d', layer.paths[id]);
+      p.setAttribute('class', 'county');
+      p.setAttribute('fill', fill);
+      p.addEventListener('mouseenter', e => showTooltip(e, id, t));
+      p.addEventListener('mousemove', moveTooltip);
+      p.addEventListener('mouseleave', () => document.getElementById('tooltip').style.display = 'none');
+      svg.appendChild(p);
+    });
+
+    if (currentLayer === 'oblast') {
+      ids.forEach(id => {
+        const t = data[id];
+        const fill = turnoutColor(typeof t === 'number' ? t : null);
+        const light = isLightFill(fill);
+        const { cx, cy } = OBLAST.centroids[id];
+        const tx = document.createElementNS(ns, 'text');
+        tx.setAttribute('x', cx); tx.setAttribute('y', cy - 3);
+        tx.setAttribute('class', 'county-label' + (light ? '' : ' light'));
+        tx.textContent = layer.names[id] || id;
+        svg.appendChild(tx);
+        if (typeof t === 'number') {
+          const pc = document.createElementNS(ns, 'text');
+          pc.setAttribute('x', cx); pc.setAttribute('y', cy + 8);
+          pc.setAttribute('class', 'county-pct' + (light ? '' : ' light'));
+          pc.textContent = t.toFixed(1) + '%';
+          svg.appendChild(pc);
+        }
+      });
+    }
+
+    const overlay = document.getElementById('emptyOverlay');
+    if (!hasAny) {
+      overlay.style.display = 'flex';
+      overlay.textContent = currentLayer === 'muni'
+        ? 'Awaiting post-count municipality turnout. CIK publishes per-municipality figures only after the preliminary count (~2–5 days after 19 April).'
+        : 'Awaiting first intraday snapshot (11:00 EEST).';
+    } else {
+      overlay.style.display = 'none';
+    }
+  }
+
+  function showTooltip(e, id, t) {
+    const tt = document.getElementById('tooltip');
+    const layer = currentLayer === 'muni' ? MUNI : OBLAST;
+    let heading;
+    if (currentLayer === 'muni') {
+      const en = layer.nameEn[id];
+      heading = en ? `<h3>${en}${en !== layer.names[id] ? ` <span class="bg-name">${layer.names[id]}</span>` : ''}</h3>`
+                   : `<h3>${layer.names[id] || id}</h3>`;
+    } else {
+      heading = `<h3>${layer.names[id] || id}</h3>`;
+    }
+    const body = (typeof t === 'number')
+      ? `<div class="bar-row"><div class="bar-label">Turnout</div>
+         <div class="bar-container"><div class="bar-fill" style="width:${Math.min(100,t)}%;background:#B45309"></div></div>
+         <div class="bar-pct">${t.toFixed(2)}%</div></div>`
+      : '<div class="no-data">No turnout data yet</div>';
+    tt.innerHTML = heading + body;
+    tt.style.display = 'block';
+    moveTooltip(e);
+  }
+  function moveTooltip(e) {
+    const tt = document.getElementById('tooltip');
+    const rect = document.getElementById('map-container').getBoundingClientRect();
+    let left = e.clientX - rect.left + 15;
+    if (left + 260 > rect.width) left = e.clientX - rect.left - 260;
+    tt.style.left = left + 'px'; tt.style.top = (e.clientY - rect.top - 10) + 'px';
+  }
+
+  function updateNational(d) {
+    const div = document.getElementById('nationalSummary');
+    const history = (d.turnout && d.turnout.nationalHistory) || {};
+    const times = ['20:00', '16:00', '11:00'];
+    let latest = null;
+    for (const t of times) {
+      if (typeof history[t] === 'number' && history[t] > 0) { latest = { time: t, pct: history[t] }; break; }
+    }
+    const nt = d.nationalTurnout || {};
+    if (!latest) {
+      div.innerHTML = '<span class="label">National turnout:</span> <span class="voters-info">Awaiting first report (11:00 EEST)</span>';
+      return;
+    }
+    const votersStr = (typeof nt.voters === 'number' && typeof nt.electorate === 'number')
+      ? `${nt.voters.toLocaleString('en-GB')} of ${nt.electorate.toLocaleString('en-GB')} voters`
+      : '';
+    div.innerHTML = `
+      <div>
+        <div class="label">National turnout</div>
+        <div class="big-number">${latest.pct.toFixed(2)}%</div>
+        ${votersStr ? `<div class="voters-info">${votersStr}</div>` : ''}
+      </div>
+      <div class="report-time">As of ${latest.time} EEST</div>
+    `;
+  }
+
+  function updateSubtitle() {
+    document.getElementById('subtitle').textContent = currentLayer === 'muni'
+      ? 'Voter turnout by municipality (265) — populated by the post-count aggregator (~2–5 days after 19 April)'
+      : 'Voter turnout by oblast (28) — three snapshots per day at 11:00, 16:00 and final after 20:00 (EEST)';
+  }
+  async function setLayer(layer) {
+    if (layer === currentLayer) return;
+    currentLayer = layer;
+    try { localStorage.setItem('bgTurnoutLayer', layer); } catch (e) {}
+    document.querySelectorAll('.tab').forEach(btn => {
+      const a = btn.dataset.layer === layer;
+      btn.classList.toggle('active', a);
+      btn.setAttribute('aria-selected', a ? 'true' : 'false');
+    });
+    updateSubtitle();
+    if (layer === 'muni') await loadMuniGeom();
+    else await loadOblastGeom();
+    resetZoomForLayer();
+    render();
+  }
+  document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => setLayer(btn.dataset.layer)));
+
+  const zoomState = { baseW: 0, baseH: 0, scale: 1, vbX: 0, vbY: 0, vbW: 0, vbH: 0, minScale: 1, maxScale: 16, isPanning: false, startX: 0, startY: 0, startVbX: 0, startVbY: 0, pinchDist: 0 };
+  function applyViewBox() {
+    const svg = document.getElementById('map');
+    svg.setAttribute('viewBox', `${zoomState.vbX} ${zoomState.vbY} ${zoomState.vbW} ${zoomState.vbH}`);
+    document.getElementById('zoomLevel').textContent = zoomState.scale.toFixed(1) + 'x';
+  }
+  function clampViewBox() {
+    const maxX = zoomState.baseW - zoomState.vbW;
+    const maxY = zoomState.baseH - zoomState.vbH;
+    zoomState.vbX = Math.max(0, Math.min(Math.max(0, maxX), zoomState.vbX));
+    zoomState.vbY = Math.max(0, Math.min(Math.max(0, maxY), zoomState.vbY));
+  }
+  function zoomAt(cx, cy, factor) {
+    const ns2 = Math.max(zoomState.minScale, Math.min(zoomState.maxScale, zoomState.scale * factor));
+    if (ns2 === zoomState.scale) return;
+    const nW = zoomState.baseW / ns2, nH = zoomState.baseH / ns2;
+    const r = 1 - nW / zoomState.vbW;
+    zoomState.vbX += (cx - zoomState.vbX) * r;
+    zoomState.vbY += (cy - zoomState.vbY) * r;
+    zoomState.vbW = nW; zoomState.vbH = nH; zoomState.scale = ns2;
+    clampViewBox(); applyViewBox();
+  }
+  function resetZoomForLayer() {
+    zoomState.baseW = SVG_W; zoomState.baseH = SVG_H;
+    zoomState.scale = 1; zoomState.vbX = 0; zoomState.vbY = 0;
+    zoomState.vbW = SVG_W; zoomState.vbH = SVG_H;
+    applyViewBox();
+  }
+  function svgPoint(e) {
+    const svg = document.getElementById('map');
+    const rect = svg.getBoundingClientRect();
+    const sx = (e.clientX - rect.left) / rect.width;
+    const sy = (e.clientY - rect.top) / rect.height;
+    return { x: zoomState.vbX + sx * zoomState.vbW, y: zoomState.vbY + sy * zoomState.vbH };
+  }
+  function getTouchDist(ts) { const dx = ts[0].clientX - ts[1].clientX, dy = ts[0].clientY - ts[1].clientY; return Math.hypot(dx, dy); }
+  function getTouchCenter(ts) { return { clientX: (ts[0].clientX + ts[1].clientX) / 2, clientY: (ts[0].clientY + ts[1].clientY) / 2 }; }
+  const mapEl = document.getElementById('map-container');
+  const svgEl = document.getElementById('map');
+  mapEl.addEventListener('wheel', e => { if (!zoomState.baseW) return; e.preventDefault(); const pt = svgPoint(e); zoomAt(pt.x, pt.y, e.deltaY < 0 ? 1.25 : 0.8); }, { passive: false });
+  svgEl.addEventListener('mousedown', e => {
+    if (e.button !== 0 || !zoomState.baseW) return;
+    zoomState.isPanning = true;
+    zoomState.startX = e.clientX; zoomState.startY = e.clientY;
+    zoomState.startVbX = zoomState.vbX; zoomState.startVbY = zoomState.vbY;
+    mapEl.classList.add('panning');
+  });
+  window.addEventListener('mousemove', e => {
+    if (!zoomState.isPanning) return;
+    const rect = svgEl.getBoundingClientRect();
+    const dx = (e.clientX - zoomState.startX) / rect.width * zoomState.vbW;
+    const dy = (e.clientY - zoomState.startY) / rect.height * zoomState.vbH;
+    zoomState.vbX = zoomState.startVbX - dx;
+    zoomState.vbY = zoomState.startVbY - dy;
+    clampViewBox(); applyViewBox();
+  });
+  window.addEventListener('mouseup', () => { zoomState.isPanning = false; mapEl.classList.remove('panning'); });
+  svgEl.addEventListener('touchstart', e => {
+    if (!zoomState.baseW) return;
+    if (e.touches.length === 1) {
+      zoomState.isPanning = true;
+      zoomState.startX = e.touches[0].clientX; zoomState.startY = e.touches[0].clientY;
+      zoomState.startVbX = zoomState.vbX; zoomState.startVbY = zoomState.vbY;
+    } else if (e.touches.length === 2) {
+      zoomState.isPanning = false; zoomState.pinchDist = getTouchDist(e.touches);
+    }
+  }, { passive: true });
+  svgEl.addEventListener('touchmove', e => {
+    if (!zoomState.baseW) return; e.preventDefault();
+    if (e.touches.length === 1 && zoomState.isPanning) {
+      const rect = svgEl.getBoundingClientRect();
+      const dx = (e.touches[0].clientX - zoomState.startX) / rect.width * zoomState.vbW;
+      const dy = (e.touches[0].clientY - zoomState.startY) / rect.height * zoomState.vbH;
+      zoomState.vbX = zoomState.startVbX - dx; zoomState.vbY = zoomState.startVbY - dy;
+      clampViewBox(); applyViewBox();
+    } else if (e.touches.length === 2) {
+      const nd = getTouchDist(e.touches), c = getTouchCenter(e.touches), pt = svgPoint(c);
+      zoomAt(pt.x, pt.y, nd / zoomState.pinchDist); zoomState.pinchDist = nd;
+    }
+  }, { passive: false });
+  svgEl.addEventListener('touchend', () => { zoomState.isPanning = false; });
+  document.getElementById('zoomIn').addEventListener('click', () => { if (zoomState.baseW) zoomAt(zoomState.vbX + zoomState.vbW / 2, zoomState.vbY + zoomState.vbH / 2, 1.5); });
+  document.getElementById('zoomOut').addEventListener('click', () => { if (zoomState.baseW) zoomAt(zoomState.vbX + zoomState.vbW / 2, zoomState.vbY + zoomState.vbH / 2, 0.67); });
+  document.getElementById('zoomReset').addEventListener('click', resetZoomForLayer);
+
+  (async () => {
+    document.querySelectorAll('.tab').forEach(btn => {
+      const a = btn.dataset.layer === currentLayer;
+      btn.classList.toggle('active', a);
+      btn.setAttribute('aria-selected', a ? 'true' : 'false');
+    });
+    updateSubtitle();
+    if (currentLayer === 'muni') await loadMuniGeom(); else await loadOblastGeom();
+    await refresh();
+    autoRefresh(refresh, 300000);
+  })();
+})();
+</script>
+</body>
+</html>

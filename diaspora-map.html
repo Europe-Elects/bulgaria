@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bulgaria 2026 – Diaspora by country</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/map.css">
+<style>
+  #map-container.panning svg { cursor: grabbing; }
+  .world-ocean { fill: #EFF6FF; }
+  .world-country { stroke: #fff; stroke-width: 0.35; cursor: pointer; transition: opacity .2s; }
+  .world-country:hover { opacity: 0.78; }
+  .world-country.bgr { stroke: #0F172A; stroke-width: 0.7; }
+
+  .cycle-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 600;
+    padding: 3px 10px; border-radius: 999px;
+    background: #F1F5F9; color: #334155;
+  }
+  .cycle-chip.live { background: #DCFCE7; color: #166534; }
+
+  .zoom-controls {
+    position: absolute; bottom: 12px; right: 12px; display: flex; flex-direction: column; gap: 4px; z-index: 5;
+  }
+  .zoom-btn {
+    width: 32px; height: 32px; border: 1px solid #E2E8F0; border-radius: 6px;
+    background: #fff; color: #475569; font-size: 16px; font-weight: 600;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,.1); transition: background .15s, color .15s;
+    line-height: 1; user-select: none;
+  }
+  .zoom-btn:hover { background: #F1F5F9; color: #0F172A; }
+  .zoom-btn.reset { font-size: 11px; font-weight: 500; }
+  .zoom-level { font-size: 10px; color: #94A3B8; text-align: center; padding: 2px 0; font-variant-numeric: tabular-nums; user-select: none; }
+
+  .rank-strip {
+    margin-top: 10px; padding: 8px 12px;
+    background: #fff; border-radius: 8px; border: 1px solid #E2E8F0;
+    display: flex; gap: 14px; overflow-x: auto; font-size: 12px;
+  }
+  .rank-strip .col { white-space: nowrap; display: flex; flex-direction: column; gap: 3px; }
+  .rank-strip .col .h { font-size: 11px; color: #64748B; font-weight: 600; }
+  .rank-strip .col .r { font-variant-numeric: tabular-nums; }
+  .rank-strip .col .r strong { color: #0F172A; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Bulgaria · Diaspora vote by country</h1>
+    <div class="subtitle">МИР 32 — abroad polling stations aggregated per country. Countries shaded by the winning party there.</div>
+    <div class="status-row">
+      <span class="last-updated" id="lastUpdated">Last updated: –</span>
+      <span class="cycle-chip" id="cycleChip">Oct 2024 reference</span>
+    </div>
+  </div>
+  <div id="map-container">
+    <svg id="map" viewBox="-180 -85 360 170" preserveAspectRatio="xMidYMid meet"></svg>
+    <div id="tooltip"></div>
+    <div class="zoom-controls">
+      <button class="zoom-btn" id="zoomIn" title="Zoom in">+</button>
+      <div class="zoom-level" id="zoomLevel">1x</div>
+      <button class="zoom-btn" id="zoomOut" title="Zoom out">−</button>
+      <button class="zoom-btn reset" id="zoomReset" title="Reset view">↺</button>
+    </div>
+  </div>
+  <div class="rank-strip" id="rankStrip"></div>
+  <div class="cta" role="note">
+    <span class="cta-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+    <span>Default view shades each country by its winning party. Click a party to drill down to that party's share per country.</span>
+  </div>
+  <div class="legend" id="legend"></div>
+  <div class="footer">· Chart made by Andrei Miclea · Source: Central Election Commission (CIK)</div>
+</div>
+
+<script src="assets/map-utils.js"></script>
+<script>
+(function () {
+  const { isLightFill, cssId, partyShade, partyMaxPct,
+          loadResults, autoRefresh, formatTs } = window.EE;
+  const NO_DATA = '#E2E8F0';
+  const W = 900, H = 420;
+
+  // Equirectangular projection cropped to where the Bulgarian diaspora lives
+  // (most of Europe + North America + Middle East). Default view.
+  const VIEW = { lonMin: -130, lonMax: 50, latMin: 10, latMax: 72 };
+
+  const PARTIES = {}, PARTY_ORDER = [];
+  const PATHS = {}, NAMES = {};
+  let DATA = null;           // { countries: { ISO3: {total_votes,turnout,parties:{key:%}} } }
+  let currentView = 'winner';
+  let lastCycleIsLive = false;
+
+  // --- projection ---
+  function project(lon, lat) {
+    const spanLon = VIEW.lonMax - VIEW.lonMin;
+    const spanLat = VIEW.latMax - VIEW.latMin;
+    const x = (lon - VIEW.lonMin) / spanLon * W;
+    const y = H - (lat - VIEW.latMin) / spanLat * H;
+    return [x, y];
+  }
+  function polygonD(rings) {
+    return rings.map(ring =>
+      'M' + ring.map(([lon, lat]) => {
+        const [x, y] = project(lon, lat);
+        return x.toFixed(2) + ',' + y.toFixed(2);
+      }).join('L') + 'Z'
+    ).join(' ');
+  }
+  function featurePath(f) {
+    const g = f.geometry;
+    if (!g) return '';
+    if (g.type === 'Polygon') return polygonD(g.coordinates);
+    if (g.type === 'MultiPolygon') return g.coordinates.map(polygonD).join(' ');
+    return '';
+  }
+
+  async function init() {
+    const svg = document.getElementById('map');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+    const [world, baseline] = await Promise.all([
+      fetch('world.json').then(r => r.json()),
+      fetch('baseline_diaspora_2024.json').then(r => r.json()),
+    ]);
+    world.features.forEach(f => {
+      const iso3 = f.properties.iso_a3;
+      if (!iso3 || iso3 === '-99') return;
+      NAMES[iso3] = f.properties.name;
+      PATHS[iso3] = featurePath(f);
+    });
+
+    // Prefer 2026 live data when available
+    let live = {};
+    try {
+      const d = await loadResults('results_live.json');
+      if (d && d.diaspora && d.diaspora.countries && Object.keys(d.diaspora.countries).length) {
+        DATA = d.diaspora;
+        lastCycleIsLive = true;
+        // Party registry comes from results_live.json in that case
+        for (const p of (d.parties || [])) {
+          PARTIES[p.key] = { color: p.color, color2: p.color2 || null, name: p.name };
+          PARTY_ORDER.push(p.key);
+        }
+      }
+    } catch (e) {}
+    if (!DATA) {
+      DATA = baseline;
+      lastCycleIsLive = false;
+      // Use Oct 2024 party palette (hardcoded — baseline only has keys, not meta)
+      const META = [
+        ['GERB-SDS','GERB-SDS (EPP)','#3399FF',null],
+        ['PP-DB','PP-DB (RE | EPP)','#FFD700','#3399FF'],
+        ['Vazrazhdane','Vazrazhdane (ESN)','#70463A',null],
+        ['DPS-NN','DPS-NN (NI)','#777777',null],
+        ['BSP-UL','BSP-UL (S&D)','#FF0000',null],
+        ['ITN','ITN (PfE)','#0000FF',null],
+        ['APS','APS (RE)','#FFD700',null],
+        ['MECh','MECh (NI)','#999999',null],
+        ['Velichie','Velichie (NI)','#999999',null],
+      ];
+      META.forEach(([k,n,c,c2]) => {
+        PARTIES[k] = { color: c, color2: c2, name: n };
+        PARTY_ORDER.push(k);
+      });
+    }
+
+    document.getElementById('lastUpdated').textContent = 'Last updated: ' +
+      formatTs(lastCycleIsLive ? DATA.lastUpdated || (new Date()).toISOString()
+                               : '2024-10-30T00:00:00+02:00');
+    const chip = document.getElementById('cycleChip');
+    chip.textContent = lastCycleIsLive ? '2026 live' : 'Oct 2024 reference';
+    chip.classList.toggle('live', lastCycleIsLive);
+
+    buildLegend();
+    render();
+    buildRankStrip();
+    autoRefresh(tryRefreshLive, 60000);
+  }
+
+  async function tryRefreshLive() {
+    try {
+      const d = await loadResults('results_live.json');
+      if (d && d.diaspora && d.diaspora.countries && Object.keys(d.diaspora.countries).length) {
+        DATA = d.diaspora;
+        lastCycleIsLive = true;
+        document.getElementById('lastUpdated').textContent = 'Last updated: ' + formatTs(d.lastUpdated);
+        const chip = document.getElementById('cycleChip');
+        chip.textContent = '2026 live';
+        chip.classList.add('live');
+        render();
+        buildRankStrip();
+      }
+    } catch (e) {}
+  }
+
+  function countryWinner(iso3) {
+    const c = DATA.countries[iso3];
+    if (!c || !c.parties) return null;
+    let best = null;
+    for (const [k, v] of Object.entries(c.parties)) {
+      if (typeof v === 'number' && (!best || v > best.pct)) best = { party: k, pct: v };
+    }
+    return best;
+  }
+
+  function render() {
+    const svg = document.getElementById('map');
+    const ns = 'http://www.w3.org/2000/svg';
+    svg.innerHTML = '';
+    applyViewBox();
+
+    // split-stripe defs
+    const defs = document.createElementNS(ns, 'defs');
+    for (const [key, p] of Object.entries(PARTIES)) {
+      if (!p.color2) continue;
+      const pat = document.createElementNS(ns, 'pattern');
+      pat.setAttribute('id', 'wsplit-' + cssId(key));
+      pat.setAttribute('patternUnits', 'userSpaceOnUse');
+      pat.setAttribute('width', '4'); pat.setAttribute('height', '4');
+      pat.setAttribute('patternTransform', 'rotate(45)');
+      const r1 = document.createElementNS(ns, 'rect'); r1.setAttribute('x','0'); r1.setAttribute('y','0'); r1.setAttribute('width','2'); r1.setAttribute('height','4'); r1.setAttribute('fill', p.color);
+      const r2 = document.createElementNS(ns, 'rect'); r2.setAttribute('x','2'); r2.setAttribute('y','0'); r2.setAttribute('width','2'); r2.setAttribute('height','4'); r2.setAttribute('fill', p.color2);
+      pat.appendChild(r1); pat.appendChild(r2); defs.appendChild(pat);
+    }
+    svg.appendChild(defs);
+
+    // ocean background
+    const ocean = document.createElementNS(ns, 'rect');
+    ocean.setAttribute('x', 0); ocean.setAttribute('y', 0);
+    ocean.setAttribute('width', W); ocean.setAttribute('height', H);
+    ocean.setAttribute('class', 'world-ocean');
+    svg.appendChild(ocean);
+
+    const partyMode = currentView !== 'winner';
+    const maxForParty = partyMode ? partyMaxPct(
+      Object.fromEntries(Object.entries(DATA.countries).map(([k,v]) => [k, v.parties || {}])),
+      currentView
+    ) : 0;
+    const partyColor = partyMode ? PARTIES[currentView].color : null;
+
+    for (const [iso3, d] of Object.entries(PATHS)) {
+      const c = DATA.countries[iso3];
+      let fill;
+      if (partyMode) {
+        const pct = c && c.parties ? c.parties[currentView] : null;
+        fill = partyShade(pct, maxForParty, partyColor);
+      } else {
+        const w = countryWinner(iso3);
+        if (w && PARTIES[w.party]) {
+          const pw = PARTIES[w.party];
+          fill = pw.color2 ? `url(#wsplit-${cssId(w.party)})` : pw.color;
+        } else fill = NO_DATA;
+      }
+      const p = document.createElementNS(ns, 'path');
+      p.setAttribute('d', d);
+      p.setAttribute('class', 'world-country' + (iso3 === 'BGR' ? ' bgr' : ''));
+      p.setAttribute('fill', fill);
+      p.addEventListener('mouseenter', e => showTooltip(e, iso3));
+      p.addEventListener('mousemove', moveTooltip);
+      p.addEventListener('mouseleave', () => document.getElementById('tooltip').style.display = 'none');
+      svg.appendChild(p);
+    }
+  }
+
+  function showTooltip(e, iso3) {
+    const tt = document.getElementById('tooltip');
+    const c = DATA.countries[iso3];
+    const name = NAMES[iso3] || iso3;
+    let html = `<h3>${name}</h3>`;
+    if (!c || !c.parties) {
+      html += '<div class="no-data">No diaspora data</div>';
+    } else {
+      html += `<div style="font-size:11px;color:#64748B;margin-bottom:6px">
+        ${c.total_votes.toLocaleString('en-GB')} votes cast · turnout ${typeof c.turnout === 'number' ? c.turnout.toFixed(2)+'%' : '—'}
+      </div>`;
+      const rows = Object.entries(c.parties).sort((a,b) => b[1] - a[1]);
+      for (const [key, pct] of rows) {
+        if (!PARTIES[key]) continue;
+        const col = PARTIES[key].color;
+        const active = currentView === key;
+        html += `<div class="bar-row" style="${active ? 'font-weight:700;' : ''}">
+          <div class="bar-label" style="color:${col}">${key}${active ? ' ●' : ''}</div>
+          <div class="bar-container"><div class="bar-fill" style="width:${pct}%;background:${col}"></div></div>
+          <div class="bar-pct">${pct.toFixed(1)}%</div></div>`;
+      }
+    }
+    tt.innerHTML = html; tt.style.display = 'block';
+    moveTooltip(e);
+  }
+  function moveTooltip(e) {
+    const tt = document.getElementById('tooltip');
+    const rect = document.getElementById('map-container').getBoundingClientRect();
+    let left = e.clientX - rect.left + 15;
+    if (left + 280 > rect.width) left = e.clientX - rect.left - 280;
+    tt.style.left = left + 'px'; tt.style.top = (e.clientY - rect.top - 10) + 'px';
+  }
+
+  function buildLegend() {
+    const lg = document.getElementById('legend');
+    lg.innerHTML = '';
+    for (const key of PARTY_ORDER) {
+      const p = PARTIES[key];
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'legend-item clickable' + (currentView === key ? ' active' : '');
+      btn.dataset.party = key;
+      const sw = p.color2
+        ? `linear-gradient(135deg, ${p.color} 0 50%, ${p.color2} 50% 100%)`
+        : p.color;
+      btn.innerHTML = `<div class="legend-swatch" style="background:${sw}"></div>${p.name}`;
+      btn.onclick = () => {
+        currentView = currentView === key ? 'winner' : key;
+        document.querySelectorAll('.legend-item.clickable').forEach(el =>
+          el.classList.toggle('active', el.dataset.party === currentView));
+        render();
+      };
+      lg.appendChild(btn);
+    }
+    const nd = document.createElement('div');
+    nd.className = 'legend-item';
+    nd.innerHTML = `<div class="legend-swatch" style="background:${NO_DATA}"></div>No data`;
+    lg.appendChild(nd);
+  }
+
+  function buildRankStrip() {
+    const strip = document.getElementById('rankStrip');
+    const rows = Object.entries(DATA.countries)
+      .sort((a, b) => b[1].total_votes - a[1].total_votes)
+      .slice(0, 10);
+    strip.innerHTML = rows.map(([iso3, c]) => {
+      const lead = Object.entries(c.parties || {}).sort((a,b)=>b[1]-a[1])[0];
+      const col = lead && PARTIES[lead[0]] ? PARTIES[lead[0]].color : '#94A3B8';
+      return `<div class="col">
+        <div class="h">${NAMES[iso3] || iso3}</div>
+        <div class="r"><strong>${c.total_votes.toLocaleString('en-GB')}</strong> votes</div>
+        <div class="r" style="color:${col}">${lead ? lead[0] + ' ' + lead[1].toFixed(1) + '%' : '—'}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // zoom/pan
+  const zoomState = { baseW: W, baseH: H, scale: 1, vbX: 0, vbY: 0, vbW: W, vbH: H, minScale: 1, maxScale: 16, isPanning: false, startX: 0, startY: 0, startVbX: 0, startVbY: 0, pinchDist: 0 };
+  function applyViewBox() {
+    const svg = document.getElementById('map');
+    svg.setAttribute('viewBox', `${zoomState.vbX} ${zoomState.vbY} ${zoomState.vbW} ${zoomState.vbH}`);
+    document.getElementById('zoomLevel').textContent = zoomState.scale.toFixed(1) + 'x';
+  }
+  function clampViewBox() {
+    const maxX = zoomState.baseW - zoomState.vbW;
+    const maxY = zoomState.baseH - zoomState.vbH;
+    zoomState.vbX = Math.max(0, Math.min(Math.max(0, maxX), zoomState.vbX));
+    zoomState.vbY = Math.max(0, Math.min(Math.max(0, maxY), zoomState.vbY));
+  }
+  function zoomAt(cx, cy, factor) {
+    const ns = Math.max(zoomState.minScale, Math.min(zoomState.maxScale, zoomState.scale * factor));
+    if (ns === zoomState.scale) return;
+    const nW = zoomState.baseW / ns, nH = zoomState.baseH / ns;
+    const r = 1 - nW / zoomState.vbW;
+    zoomState.vbX += (cx - zoomState.vbX) * r;
+    zoomState.vbY += (cy - zoomState.vbY) * r;
+    zoomState.vbW = nW; zoomState.vbH = nH; zoomState.scale = ns;
+    clampViewBox(); applyViewBox();
+  }
+  function resetZoom() {
+    zoomState.scale = 1; zoomState.vbX = 0; zoomState.vbY = 0;
+    zoomState.vbW = W; zoomState.vbH = H;
+    applyViewBox();
+  }
+  function svgPoint(e) {
+    const svg = document.getElementById('map');
+    const rect = svg.getBoundingClientRect();
+    const sx = (e.clientX - rect.left) / rect.width;
+    const sy = (e.clientY - rect.top) / rect.height;
+    return { x: zoomState.vbX + sx * zoomState.vbW, y: zoomState.vbY + sy * zoomState.vbH };
+  }
+  const mapEl = document.getElementById('map-container');
+  const svgEl = document.getElementById('map');
+  mapEl.addEventListener('wheel', e => { e.preventDefault(); const pt = svgPoint(e); zoomAt(pt.x, pt.y, e.deltaY < 0 ? 1.25 : 0.8); }, { passive: false });
+  svgEl.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    zoomState.isPanning = true;
+    zoomState.startX = e.clientX; zoomState.startY = e.clientY;
+    zoomState.startVbX = zoomState.vbX; zoomState.startVbY = zoomState.vbY;
+    mapEl.classList.add('panning');
+  });
+  window.addEventListener('mousemove', e => {
+    if (!zoomState.isPanning) return;
+    const rect = svgEl.getBoundingClientRect();
+    const dx = (e.clientX - zoomState.startX) / rect.width * zoomState.vbW;
+    const dy = (e.clientY - zoomState.startY) / rect.height * zoomState.vbH;
+    zoomState.vbX = zoomState.startVbX - dx;
+    zoomState.vbY = zoomState.startVbY - dy;
+    clampViewBox(); applyViewBox();
+  });
+  window.addEventListener('mouseup', () => { zoomState.isPanning = false; mapEl.classList.remove('panning'); });
+  document.getElementById('zoomIn').addEventListener('click', () => zoomAt(zoomState.vbX + zoomState.vbW / 2, zoomState.vbY + zoomState.vbH / 2, 1.5));
+  document.getElementById('zoomOut').addEventListener('click', () => zoomAt(zoomState.vbX + zoomState.vbW / 2, zoomState.vbY + zoomState.vbH / 2, 0.67));
+  document.getElementById('zoomReset').addEventListener('click', resetZoom);
+
+  init();
+})();
+</script>
+</body>
+</html>

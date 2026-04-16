@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bulgaria 2026 – National Popular Vote</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/map.css">
+<style>
+  body { overflow: auto; }
+  .container { max-width: 720px; }
+  .pv-row {
+    display: grid; grid-template-columns: 120px 1fr 80px 72px; gap: 10px;
+    align-items: center; padding: 8px 10px; border-radius: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .pv-row:hover { background: #F8FAFC; }
+  .pv-name { font-size: 12px; font-weight: 600; color: #0F172A; }
+  .pv-bar-container { height: 18px; background: #F1F5F9; border-radius: 4px; overflow: hidden; position: relative; }
+  .pv-bar-fill { height: 100%; transition: width .4s ease; }
+  .pv-pct { font-size: 13px; font-weight: 700; color: #0F172A; text-align: right; }
+  .pv-votes { font-size: 11px; color: #64748B; text-align: right; }
+  .threshold-line {
+    position: relative; margin: 4px 10px; padding-top: 4px;
+    border-top: 1px dashed #CBD5E1;
+    font-size: 10px; color: #94A3B8;
+  }
+  .threshold-line span { display: inline-block; padding: 2px 6px; background: #F1F5F9; border-radius: 3px; margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Bulgaria 2026 · National popular vote</h1>
+    <div class="subtitle">Running percentage and vote totals · updates every 60 s during count</div>
+    <div class="status-row">
+      <span class="last-updated" id="lastUpdated">Last updated: –</span>
+      <span class="counted-pill" id="countedPill"></span>
+    </div>
+  </div>
+  <div class="viz-container" style="padding: 12px 4px;">
+    <div id="list"></div>
+  </div>
+  <div class="footer">· Chart made by Andrei Miclea · Source: Central Election Commission (CIK)</div>
+</div>
+<script src="assets/map-utils.js"></script>
+<script>
+(function () {
+  const { loadResults, autoRefresh, formatTs, setCountedPill, setLiveDot } = window.EE;
+
+  async function refresh() {
+    const d = await loadResults('results_live.json');
+    document.getElementById('lastUpdated').textContent = 'Last updated: ' + formatTs(d.lastUpdated);
+    setLiveDot(document.getElementById('lastUpdated'), d.processingPctDomestic < 100);
+    setCountedPill(document.getElementById('countedPill'), d.processingPctDomestic);
+    render(d.parties || []);
+  }
+
+  function render(parties) {
+    const max = Math.max(0.01, ...parties.map(p => p.national_pct));
+    const list = document.getElementById('list');
+    list.innerHTML = '';
+    let thresholdInserted = false;
+    parties.forEach(p => {
+      if (!thresholdInserted && p.national_pct < 4) {
+        const div = document.createElement('div');
+        div.className = 'threshold-line';
+        div.innerHTML = '<span>4% threshold (Bulgaria National Assembly)</span>';
+        list.appendChild(div);
+        thresholdInserted = true;
+      }
+      const row = document.createElement('div');
+      row.className = 'pv-row';
+      const barFill = p.color2
+        ? `linear-gradient(90deg, ${p.color} 0 50%, ${p.color2} 50% 100%)`
+        : p.color;
+      const width = (p.national_pct / max * 100).toFixed(1);
+      row.innerHTML = `
+        <div class="pv-name">${p.name}</div>
+        <div class="pv-bar-container"><div class="pv-bar-fill" style="width:${width}%;background:${barFill}"></div></div>
+        <div class="pv-pct">${p.national_pct.toFixed(2)}%</div>
+        <div class="pv-votes">${p.national_votes.toLocaleString('en-GB')}</div>`;
+      list.appendChild(row);
+    });
+  }
+
+  refresh();
+  autoRefresh(refresh, 60000);
+})();
+</script>
+</body>
+</html>

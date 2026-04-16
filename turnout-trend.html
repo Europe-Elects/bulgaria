@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bulgaria 2026 – Turnout Trend</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #F8FAFC; color: #0F172A;
+  display: flex; flex-direction: column; overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+.container {
+  max-width: 960px; margin: 0 auto; padding: 16px 16px 12px; width: 100%;
+  flex: 1; display: flex; flex-direction: column; min-height: 0;
+}
+.header { margin-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.title-block { min-width: 0; }
+.subtitle { font-size: 13px; color: #475569; font-weight: 500; letter-spacing: -0.01em; }
+.last-updated {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; color: #475569; margin-top: 6px;
+  padding: 3px 8px; background: #F1F5F9; border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+.last-updated::before {
+  content: ''; display: inline-block; width: 6px; height: 6px;
+  border-radius: 50%; background: #94A3B8;
+}
+.last-updated.live::before { background: #22C55E; animation: pulse 2s infinite; box-shadow: 0 0 0 0 rgba(34,197,94,0.7); }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+#chart-container {
+  position: relative; width: 100%;
+  background: #fff; border-radius: 10px; border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 3px rgba(15,23,42,.04), 0 4px 12px rgba(15,23,42,.03);
+  flex: 1 1 auto; min-height: 0;
+  padding: 14px 14px 8px;
+  display: flex; flex-direction: column;
+}
+.legend-row {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  font-size: 12px; color: #334155; margin-bottom: 8px;
+}
+.legend-row .item {
+  display: inline-flex; align-items: center; gap: 7px;
+  cursor: pointer; user-select: none;
+  padding: 4px 10px; border-radius: 999px;
+  background: #F8FAFC; border: 1px solid #E2E8F0;
+  transition: background .15s, border-color .15s, opacity .15s, transform .15s;
+  font-variant-numeric: tabular-nums;
+}
+.legend-row .item:hover { background: #F1F5F9; border-color: #CBD5E1; }
+.legend-row .item.active { background: #fff; border-color: #94A3B8; box-shadow: 0 1px 2px rgba(15,23,42,.06); }
+.legend-row .item.dimmed { opacity: 0.35; }
+.legend-row .line-swatch { width: 18px; height: 3px; border-radius: 2px; }
+.legend-row .final { color: #64748B; font-weight: 500; font-size: 11px; }
+.legend-row .item.y2026 { font-weight: 700; background: #EFF6FF; border-color: #BFDBFE; color: #1E40AF; }
+.legend-row .item.y2026:hover { background: #DBEAFE; }
+.legend-row .item.y2026 .line-swatch { height: 4px; }
+
+.chart-wrap { position: relative; flex: 1 1 auto; min-height: 0; }
+svg#chart { width: 100%; height: 100%; display: block; font-family: inherit; }
+.grid-line { stroke: #F1F5F9; stroke-width: 1; }
+.grid-line.axis { stroke: #CBD5E1; }
+.axis-label { font-size: 10.5px; fill: #64748B; font-variant-numeric: tabular-nums; font-weight: 500; }
+.axis-major { font-size: 11px; fill: #334155; font-weight: 600; font-variant-numeric: tabular-nums; }
+.end-badge { font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.end-badge-final { font-size: 9.5px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.dot-label { font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.now-marker-label { font-size: 9.5px; font-weight: 700; fill: #2563EB; letter-spacing: 0.02em; text-transform: uppercase; }
+
+#tooltip {
+  position: absolute; pointer-events: none; z-index: 5;
+  background: rgba(15,23,42,0.96); color: #F8FAFC;
+  padding: 8px 10px; border-radius: 6px; font-size: 11.5px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.15);
+  font-variant-numeric: tabular-nums;
+  min-width: 120px;
+  opacity: 0; transition: opacity .12s;
+  transform: translate(-50%, -100%);
+}
+#tooltip.visible { opacity: 1; }
+#tooltip .tt-time { font-weight: 700; margin-bottom: 4px; font-size: 12px; }
+#tooltip .tt-row { display: flex; justify-content: space-between; gap: 10px; line-height: 1.4; }
+#tooltip .tt-row .tt-year { display: flex; align-items: center; gap: 5px; color: #CBD5E1; }
+#tooltip .tt-row .tt-year::before { content: ''; width: 8px; height: 2px; border-radius: 1px; background: currentColor; }
+#tooltip .tt-row.y2026 .tt-year { color: #60A5FA; font-weight: 700; }
+#tooltip .tt-row.y2026 { color: #fff; font-weight: 700; }
+
+.chart-footnote { font-size: 10px; color: #64748B; margin-top: 6px; line-height: 1.45; }
+.chart-footnote strong { color: #334155; }
+.footer { margin-top: 8px; font-size: 11px; color: #64748B; text-align: center; }
+@media (prefers-reduced-motion: reduce) {
+  @keyframes pulse { 0%, 100% { opacity: 1; } }
+}
+@media (max-width: 600px) {
+  .legend-row { gap: 6px; font-size: 11px; }
+  .legend-row .item { padding: 3px 8px; }
+  .legend-row .line-swatch { width: 14px; }
+  .chart-footnote { font-size: 9.5px; }
+  .end-badge, .end-badge-final { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="title-block">
+      <div class="subtitle">Turnout progression through election day — 2026 vs previous elections</div>
+      <div class="last-updated" id="lastUpdated">Last updated: –</div>
+    </div>
+  </div>
+  <div id="chart-container">
+    <div class="legend-row" id="legend"></div>
+    <div class="chart-wrap">
+      <svg id="chart"></svg>
+      <div id="tooltip"></div>
+    </div>
+    <div class="chart-footnote">
+      Intraday turnout at polling stations from CIK snapshots at 11:00, 16:00 and polls-close 20:00 (EEST).
+      <strong>2026</strong> updates live every ~5 min during voting.
+    </div>
+  </div>
+  <div class="footer">· Chart made by Andrei Miclea · Source: Central Election Commission (CIK)</div>
+</div>
+
+<script>
+// Historical Bulgarian parliamentary-election turnout snapshots.
+// Times follow the CIK activity page: 11:00 and 16:00 are published live during the day,
+// the 20:00 "final" comes from the SIK protocols.
+const HISTORICAL = {
+  '2024-10': {
+    color: '#DC2626', width: 1.75, dash: '',
+    data: { '07:00': 0, '11:00': 9.55, '16:00': 26.25, '20:00': 38.94 },
+    final: 38.94,
+    label: 'Oct 2024',
+  },
+  '2024-06': {
+    color: '#D97706', width: 1.75, dash: '',
+    data: { '07:00': 0, '11:00': 8.34, '16:00': 20.44, '20:00': 34.41 },
+    final: 34.41,
+    label: 'Jun 2024',
+  },
+  '2023-04': {
+    color: '#059669', width: 1.75, dash: '5 3',
+    data: { '07:00': 0, '11:00': 8.97, '16:00': 27.27, '20:00': 40.69 },
+    final: 40.69,
+    label: 'Apr 2023',
+  },
+  '2022-10': {
+    color: '#7C3AED', width: 1.75, dash: '5 3',
+    data: { '07:00': 0, '11:00': 8.89, '16:00': 25.58, '20:00': 39.41 },
+    final: 39.41,
+    label: 'Oct 2022',
+  },
+};
+
+const YEAR_2026 = { color: '#2563EB', width: 3.25, dash: '' };
+
+const ALL_TIMES = ['07:00', '11:00', '16:00', '20:00'];
+const AXIS_TIMES = ['07:00', '11:00', '16:00', '20:00'];
+
+function timeToMinutes(t) {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m - 360; // minutes after 06:00
+}
+
+const PAD_LEFT = 44;
+const PAD_RIGHT = 92;
+const PAD_TOP = 18;
+const PAD_BOTTOM = 30;
+const X_MAX_MIN = 14 * 60; // 06:00 → 20:00
+
+let isolatedYear = null;
+let lastData = null;
+
+function buildLegend() {
+  const el = document.getElementById('legend');
+  el.innerHTML = '';
+
+  const item2026 = document.createElement('div');
+  const is2026Active = isolatedYear === null || isolatedYear === '2026';
+  item2026.className = 'item y2026' + (is2026Active ? '' : ' dimmed');
+  item2026.innerHTML = `<div class="line-swatch" style="background:${YEAR_2026.color}"></div>2026 <span class="final" style="color:#3B82F6">live</span>`;
+  item2026.addEventListener('click', () => { isolatedYear = null; updateChart(); });
+  el.appendChild(item2026);
+
+  for (const [year, cfg] of Object.entries(HISTORICAL)) {
+    const item = document.createElement('div');
+    const isThis = isolatedYear === year;
+    const isDimmed = isolatedYear !== null && isolatedYear !== year && isolatedYear !== '2026';
+    item.className = 'item' + (isThis ? ' active' : isDimmed ? ' dimmed' : '');
+    const finalLabel = cfg.final ? ` <span class="final">${cfg.final.toFixed(1)}%</span>` : '';
+    item.innerHTML = `<div class="line-swatch" style="background:${cfg.color}"></div>${cfg.label}${finalLabel}`;
+    item.addEventListener('click', () => {
+      isolatedYear = (isolatedYear === year) ? null : year;
+      updateChart();
+    });
+    el.appendChild(item);
+  }
+}
+
+function updateChart() {
+  buildLegend();
+  if (lastData) origApply(lastData);
+}
+
+let chartGeom = null;
+
+function renderChart(history2026) {
+  const svg = document.getElementById('chart');
+  svg.innerHTML = '';
+  const ns = 'http://www.w3.org/2000/svg';
+
+  const rect = svg.getBoundingClientRect();
+  const VB_W = Math.max(400, Math.round(rect.width));
+  const VB_H = Math.max(200, Math.round(rect.height));
+  svg.setAttribute('viewBox', `0 0 ${VB_W} ${VB_H}`);
+
+  const plotW = VB_W - PAD_LEFT - PAD_RIGHT;
+  const plotH = VB_H - PAD_TOP - PAD_BOTTOM;
+  const yMax = 70;
+
+  function xScale(min) { return PAD_LEFT + (min / X_MAX_MIN) * plotW; }
+  function yScale(pct) { return PAD_TOP + plotH - (pct / yMax) * plotH; }
+
+  chartGeom = { xScale, yScale, plotW, plotH, VB_W, VB_H, yMax };
+
+  const defs = document.createElementNS(ns, 'defs');
+  defs.innerHTML = `
+    <linearGradient id="grad2026" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#2563EB" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#2563EB" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="badgeShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#0F172A" flood-opacity="0.08"/>
+    </filter>
+  `;
+  svg.appendChild(defs);
+
+  // Y gridlines every 10%
+  for (let y = 0; y <= yMax; y += 10) {
+    const yy = yScale(y);
+    const line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', PAD_LEFT); line.setAttribute('x2', PAD_LEFT + plotW);
+    line.setAttribute('y1', yy); line.setAttribute('y2', yy);
+    line.setAttribute('class', y === 0 ? 'grid-line axis' : 'grid-line');
+    svg.appendChild(line);
+    const lbl = document.createElementNS(ns, 'text');
+    lbl.setAttribute('x', PAD_LEFT - 7); lbl.setAttribute('y', yy + 3);
+    lbl.setAttribute('text-anchor', 'end'); lbl.setAttribute('class', 'axis-label');
+    lbl.textContent = y + '%';
+    svg.appendChild(lbl);
+  }
+
+  for (const t of AXIS_TIMES) {
+    const m = timeToMinutes(t);
+    const xx = xScale(m);
+    const line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', xx); line.setAttribute('x2', xx);
+    line.setAttribute('y1', PAD_TOP); line.setAttribute('y2', PAD_TOP + plotH);
+    line.setAttribute('class', 'grid-line');
+    svg.appendChild(line);
+    const lbl = document.createElementNS(ns, 'text');
+    lbl.setAttribute('x', xx); lbl.setAttribute('y', PAD_TOP + plotH + 15);
+    lbl.setAttribute('text-anchor', 'middle'); lbl.setAttribute('class', 'axis-label');
+    lbl.textContent = t;
+    svg.appendChild(lbl);
+  }
+
+  function drawLine(dataDict, color, width, dash, opacity, dotR) {
+    const sorted = ALL_TIMES
+      .filter(t => typeof dataDict[t] === 'number')
+      .map(t => ({ x: xScale(timeToMinutes(t)), y: yScale(dataDict[t]), pct: dataDict[t], time: t }));
+    if (sorted.length < 1) return sorted;
+    if (sorted.length > 1) {
+      const pl = document.createElementNS(ns, 'polyline');
+      pl.setAttribute('points', sorted.map(p => `${p.x},${p.y}`).join(' '));
+      pl.setAttribute('fill', 'none'); pl.setAttribute('stroke', color);
+      pl.setAttribute('stroke-width', width);
+      if (dash) pl.setAttribute('stroke-dasharray', dash);
+      pl.setAttribute('stroke-linecap', 'round'); pl.setAttribute('stroke-linejoin', 'round');
+      if (opacity < 1) pl.setAttribute('opacity', opacity);
+      svg.appendChild(pl);
+    }
+    for (const p of sorted) {
+      const c = document.createElementNS(ns, 'circle');
+      c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', dotR);
+      c.setAttribute('fill', color); c.setAttribute('stroke', '#fff');
+      c.setAttribute('stroke-width', dotR > 3 ? 1.5 : 1);
+      if (opacity < 1) c.setAttribute('opacity', opacity);
+      svg.appendChild(c);
+    }
+    return sorted;
+  }
+
+  const histEntries = Object.entries(HISTORICAL);
+  const histLabels = [];
+  for (const [year, cfg] of histEntries) {
+    const visible = isolatedYear === null || isolatedYear === year || isolatedYear === '2026';
+    const opacity = visible ? 0.85 : 0.08;
+    const sorted = drawLine(cfg.data, cfg.color, cfg.width, cfg.dash, opacity, 2.25);
+    if (visible && sorted.length > 0) {
+      const last = sorted[sorted.length - 1];
+      histLabels.push({ label: cfg.label || year, color: cfg.color, x: last.x, y: last.y, final: cfg.final });
+    }
+  }
+
+  if (histLabels.length > 0) {
+    histLabels.sort((a, b) => a.y - b.y);
+    const minGap = 22;
+    // tighter two-digit finals → bump first label up so the last one has room above the x-axis
+    const axisY = PAD_TOP + plotH - 18;  // 18px above the axis baseline, leaving room for the "20:00" tick
+    for (let i = 1; i < histLabels.length; i++) {
+      if (histLabels[i].y - histLabels[i-1].y < minGap) {
+        histLabels[i].y = histLabels[i-1].y + minGap;
+      }
+    }
+    // If the bottom badge overshoots the axis, shift the whole stack up
+    const overflow = histLabels[histLabels.length - 1].y - axisY;
+    if (overflow > 0) {
+      for (const lbl of histLabels) lbl.y -= overflow;
+    }
+    for (const lbl of histLabels) {
+      const g = document.createElementNS(ns, 'g');
+      const conn = document.createElementNS(ns, 'line');
+      conn.setAttribute('x1', lbl.x + 4); conn.setAttribute('x2', lbl.x + 14);
+      conn.setAttribute('y1', lbl.y); conn.setAttribute('y2', lbl.y);
+      conn.setAttribute('stroke', lbl.color); conn.setAttribute('stroke-width', 1); conn.setAttribute('opacity', 0.5);
+      g.appendChild(conn);
+      const yearText = document.createElementNS(ns, 'text');
+      yearText.setAttribute('x', lbl.x + 16); yearText.setAttribute('y', lbl.y - 1);
+      yearText.setAttribute('class', 'end-badge'); yearText.setAttribute('fill', lbl.color);
+      yearText.textContent = lbl.label;
+      g.appendChild(yearText);
+      if (lbl.final) {
+        const finalText = document.createElementNS(ns, 'text');
+        finalText.setAttribute('x', lbl.x + 16); finalText.setAttribute('y', lbl.y + 10);
+        finalText.setAttribute('class', 'end-badge-final'); finalText.setAttribute('fill', lbl.color);
+        finalText.setAttribute('opacity', 0.8); finalText.textContent = lbl.final.toFixed(1) + '%';
+        g.appendChild(finalText);
+      }
+      svg.appendChild(g);
+    }
+  }
+
+  const show2026 = isolatedYear === null || isolatedYear === '2026';
+  const has2026Value = history2026 && Object.values(history2026).some(v => typeof v === 'number' && v > 0);
+  if (show2026 && has2026Value) {
+    const sorted2026 = ALL_TIMES
+      .filter(t => typeof history2026[t] === 'number')
+      .map(t => ({ x: xScale(timeToMinutes(t)), y: yScale(history2026[t]), pct: history2026[t], time: t }));
+
+    if (sorted2026.length > 1) {
+      const baseY = yScale(0);
+      const areaPts = [`${sorted2026[0].x},${baseY}`]
+        .concat(sorted2026.map(p => `${p.x},${p.y}`))
+        .concat([`${sorted2026[sorted2026.length-1].x},${baseY}`])
+        .join(' ');
+      const area = document.createElementNS(ns, 'polygon');
+      area.setAttribute('points', areaPts);
+      area.setAttribute('fill', 'url(#grad2026)');
+      svg.appendChild(area);
+    }
+    if (sorted2026.length > 1) {
+      const pl = document.createElementNS(ns, 'polyline');
+      pl.setAttribute('points', sorted2026.map(p => `${p.x},${p.y}`).join(' '));
+      pl.setAttribute('fill', 'none'); pl.setAttribute('stroke', YEAR_2026.color);
+      pl.setAttribute('stroke-width', YEAR_2026.width);
+      pl.setAttribute('stroke-linecap', 'round'); pl.setAttribute('stroke-linejoin', 'round');
+      svg.appendChild(pl);
+    }
+    for (const p of sorted2026) {
+      const c = document.createElementNS(ns, 'circle');
+      c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', 4.5);
+      c.setAttribute('fill', '#fff'); c.setAttribute('stroke', YEAR_2026.color); c.setAttribute('stroke-width', 2.25);
+      svg.appendChild(c);
+    }
+    const lastIdx = sorted2026.length - 1;
+    for (let i = 0; i < sorted2026.length; i++) {
+      const p = sorted2026[i];
+      const isLast = i === lastIdx;
+      const isFinal = isLast && p.time === '20:00';
+      const lbl = document.createElementNS(ns, 'text');
+      if (isFinal) {
+        lbl.setAttribute('x', p.x - 7); lbl.setAttribute('y', p.y - 2); lbl.setAttribute('text-anchor', 'end');
+      } else {
+        lbl.setAttribute('x', p.x); lbl.setAttribute('y', p.y - 10); lbl.setAttribute('text-anchor', 'middle');
+      }
+      lbl.setAttribute('class', 'dot-label'); lbl.setAttribute('fill', YEAR_2026.color);
+      lbl.setAttribute('paint-order', 'stroke'); lbl.setAttribute('stroke', '#fff');
+      lbl.setAttribute('stroke-width', '3'); lbl.setAttribute('stroke-linejoin', 'round');
+      lbl.textContent = p.pct.toFixed(1) + '%';
+      if (isLast) lbl.setAttribute('font-size', '12.5');
+      svg.appendChild(lbl);
+    }
+
+    const last = sorted2026[lastIdx];
+    if (last && last.time !== '20:00') {
+      const nowLine = document.createElementNS(ns, 'line');
+      nowLine.setAttribute('x1', last.x); nowLine.setAttribute('x2', last.x);
+      nowLine.setAttribute('y1', PAD_TOP); nowLine.setAttribute('y2', PAD_TOP + plotH);
+      nowLine.setAttribute('stroke', YEAR_2026.color); nowLine.setAttribute('stroke-width', 1);
+      nowLine.setAttribute('stroke-dasharray', '2 3'); nowLine.setAttribute('opacity', 0.35);
+      svg.appendChild(nowLine);
+      const nowLbl = document.createElementNS(ns, 'text');
+      nowLbl.setAttribute('x', last.x); nowLbl.setAttribute('y', PAD_TOP - 4);
+      nowLbl.setAttribute('text-anchor', 'middle'); nowLbl.setAttribute('class', 'now-marker-label');
+      nowLbl.textContent = 'now';
+      svg.appendChild(nowLbl);
+    }
+
+    // Projection based on previous cycles' remaining-voter capture rate.
+    // Needs ≥ 2 historical references to be meaningful — with only 1 it degenerates,
+    // so guard with length >= 2.
+    const refElections = Object.values(HISTORICAL).filter(e => e.final);
+    if (refElections.length >= 2) {
+      const availableTimes = ALL_TIMES.filter(t => typeof history2026[t] === 'number');
+      const latestTime = availableTimes[availableTimes.length - 1];
+      if (latestTime) {
+        const now2026 = history2026[latestTime];
+        const futureTimes = ALL_TIMES.filter(t => timeToMinutes(t) > timeToMinutes(latestTime));
+        if (futureTimes.length > 0) {
+          const projData = {}; projData[latestTime] = now2026;
+          for (const t of futureTimes) {
+            let sum = 0, cnt = 0;
+            for (const ref of refElections) {
+              const refNow = ref.data[latestTime], refAtT = ref.data[t], refFinal = ref.final;
+              if (typeof refNow !== 'number' || typeof refAtT !== 'number' || !refFinal || refFinal <= refNow) continue;
+              const frac = (refAtT - refNow) / (refFinal - refNow);
+              const cap = (refFinal - refNow) / (100 - refNow);
+              const gain = (100 - now2026) * cap;
+              sum += now2026 + gain * frac; cnt++;
+            }
+            if (cnt > 0) projData[t] = Math.min(100, +(sum / cnt).toFixed(1));
+          }
+          let fSum = 0, fCnt = 0;
+          for (const ref of refElections) {
+            const refNow = ref.data[latestTime];
+            if (typeof refNow !== 'number' || !ref.final || ref.final <= refNow) continue;
+            const cap = (ref.final - refNow) / (100 - refNow);
+            fSum += now2026 + (100 - now2026) * cap; fCnt++;
+          }
+          const projFinal = fCnt > 0 ? Math.min(100, +(fSum / fCnt).toFixed(1)) : null;
+          const ps = ALL_TIMES.filter(t => typeof projData[t] === 'number').map(t => ({ x: xScale(timeToMinutes(t)), y: yScale(projData[t]) }));
+          if (ps.length > 1) {
+            const pl = document.createElementNS(ns, 'polyline');
+            pl.setAttribute('points', ps.map(p => `${p.x},${p.y}`).join(' '));
+            pl.setAttribute('fill', 'none'); pl.setAttribute('stroke', '#93C5FD');
+            pl.setAttribute('stroke-width', 2.25); pl.setAttribute('stroke-dasharray', '5 4');
+            pl.setAttribute('stroke-linecap', 'round'); pl.setAttribute('stroke-linejoin', 'round');
+            svg.appendChild(pl);
+          }
+          const lp = ps[ps.length - 1];
+          if (lp && projFinal !== null) {
+            const g = document.createElementNS(ns, 'g');
+            const txt = 'proj. ~' + projFinal.toFixed(0) + '%';
+            const bgW = txt.length * 5.5 + 10;
+            const r = document.createElementNS(ns, 'rect');
+            r.setAttribute('x', lp.x - bgW - 4); r.setAttribute('y', lp.y - 22);
+            r.setAttribute('width', bgW); r.setAttribute('height', 16); r.setAttribute('rx', 8);
+            r.setAttribute('fill', '#DBEAFE'); r.setAttribute('stroke', '#93C5FD'); r.setAttribute('stroke-width', 1);
+            g.appendChild(r);
+            const t = document.createElementNS(ns, 'text');
+            t.setAttribute('x', lp.x - bgW/2 - 4); t.setAttribute('y', lp.y - 11);
+            t.setAttribute('text-anchor', 'middle'); t.setAttribute('font-size', 10);
+            t.setAttribute('font-weight', 700); t.setAttribute('fill', '#1D4ED8');
+            t.textContent = txt;
+            g.appendChild(t);
+            svg.appendChild(g);
+          }
+        }
+      }
+    }
+  }
+
+  const hoverLayer = document.createElementNS(ns, 'rect');
+  hoverLayer.setAttribute('x', PAD_LEFT); hoverLayer.setAttribute('y', PAD_TOP);
+  hoverLayer.setAttribute('width', plotW); hoverLayer.setAttribute('height', plotH);
+  hoverLayer.setAttribute('fill', 'transparent'); hoverLayer.setAttribute('id', 'hoverLayer');
+  svg.appendChild(hoverLayer);
+
+  const crosshair = document.createElementNS(ns, 'line');
+  crosshair.setAttribute('id', 'crosshair');
+  crosshair.setAttribute('y1', PAD_TOP); crosshair.setAttribute('y2', PAD_TOP + plotH);
+  crosshair.setAttribute('stroke', '#64748B'); crosshair.setAttribute('stroke-width', 1);
+  crosshair.setAttribute('stroke-dasharray', '3 3'); crosshair.setAttribute('opacity', 0);
+  svg.appendChild(crosshair);
+
+  attachHover(svg, history2026);
+}
+
+function attachHover(svg, history2026) {
+  const tooltip = document.getElementById('tooltip');
+  const crosshair = document.getElementById('crosshair');
+  const hoverLayer = document.getElementById('hoverLayer');
+  if (!hoverLayer || !chartGeom) return;
+
+  function nearestTime(minutes) {
+    let best = ALL_TIMES[0], bestDist = Infinity;
+    for (const t of ALL_TIMES) {
+      const d = Math.abs(timeToMinutes(t) - minutes);
+      if (d < bestDist) { bestDist = d; best = t; }
+    }
+    return best;
+  }
+
+  function onMove(evt) {
+    const rect = svg.getBoundingClientRect();
+    const ratioX = (evt.clientX - rect.left) / rect.width;
+    const svgX = ratioX * chartGeom.VB_W;
+    if (svgX < PAD_LEFT || svgX > PAD_LEFT + chartGeom.plotW) { onLeave(); return; }
+    const minutes = (svgX - PAD_LEFT) / chartGeom.plotW * X_MAX_MIN;
+    const t = nearestTime(minutes);
+    const tx = chartGeom.xScale(timeToMinutes(t));
+
+    crosshair.setAttribute('x1', tx); crosshair.setAttribute('x2', tx);
+    crosshair.setAttribute('opacity', 0.55);
+
+    let html = `<div class="tt-time">${t}</div>`;
+    const show2026 = isolatedYear === null || isolatedYear === '2026';
+    if (show2026 && history2026 && typeof history2026[t] === 'number') {
+      html += `<div class="tt-row y2026"><span class="tt-year">2026</span><span>${history2026[t].toFixed(2)}%</span></div>`;
+    }
+    for (const [year, cfg] of Object.entries(HISTORICAL)) {
+      const visible = isolatedYear === null || isolatedYear === year || isolatedYear === '2026';
+      if (!visible) continue;
+      if (typeof cfg.data[t] !== 'number') continue;
+      html += `<div class="tt-row" style="color:${cfg.color}"><span class="tt-year">${cfg.label || year}</span><span>${cfg.data[t].toFixed(2)}%</span></div>`;
+    }
+    tooltip.innerHTML = html;
+    tooltip.classList.add('visible');
+    const tooltipX = (tx / chartGeom.VB_W) * rect.width;
+    const tooltipY = Math.max(12, evt.clientY - rect.top - 12);
+    tooltip.style.left = tooltipX + 'px';
+    tooltip.style.top = tooltipY + 'px';
+  }
+  function onLeave() {
+    crosshair.setAttribute('opacity', 0);
+    tooltip.classList.remove('visible');
+  }
+
+  hoverLayer.addEventListener('mousemove', onMove);
+  hoverLayer.addEventListener('mouseleave', onLeave);
+  hoverLayer.addEventListener('touchmove', (e) => { if (e.touches[0]) onMove(e.touches[0]); }, { passive: true });
+  hoverLayer.addEventListener('touchend', onLeave);
+}
+
+function applyResults(data) {
+  const el = document.getElementById('lastUpdated');
+  el.textContent = 'Last updated: ' + new Date(data.lastUpdated).toLocaleString('en-GB', {dateStyle:'medium',timeStyle:'medium',timeZone:'Europe/Sofia'});
+  const raw = (data.turnout && data.turnout.nationalHistory) || {};
+  // Drop the 16:00 intraday snapshot once the 20:00 final is published — avoid labels overlapping at the right edge.
+  const history = {};
+  for (const [k, v] of Object.entries(raw)) history[k] = v;
+  // (Bulgaria has fewer overlap risks than Hungary since 20:00 is already the terminal snapshot.)
+  el.classList.toggle('live', Object.keys(history).length > 0 && data.processingPctDomestic < 100);
+  renderChart(history);
+}
+
+async function loadResults() {
+  try { applyResults(await (await fetch('results_live.json?' + Date.now())).json()); }
+  catch (e) { renderChart({}); }
+}
+setInterval(async () => {
+  try { applyResults(await (await fetch('results_live.json?' + Date.now())).json()); }
+  catch (e) {}
+}, 60000);
+
+let resizeTimer = null;
+const origApply = applyResults;
+applyResults = function(data) { lastData = data; origApply(data); };
+window.addEventListener('resize', () => {
+  if (resizeTimer) clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { if (lastData) origApply(lastData); }, 150);
+});
+
+buildLegend();
+loadResults();
+</script>
+</body>
+</html>
