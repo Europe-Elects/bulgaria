@@ -108,6 +108,38 @@ button.legend-item { line-height: 1.4; }
 
 .footer { margin-top: 8px; font-size: 11px; color: #64748B; text-align: center; }
 
+/* ── Mobile (≤ 520px) ── */
+@media (max-width: 520px) {
+  .container { padding: 10px 8px; }
+  h1 { font-size: 16px; }
+  .subtitle { font-size: 11px; }
+
+  /* Legend: wrap into two rows comfortably */
+  .legend { gap: 5px; font-size: 11px; }
+  .legend-item { padding: 3px 6px; font-size: 11px; }
+  .legend-swatch { width: 10px; height: 10px; }
+
+  /* CTA pill */
+  .cta { font-size: 11px; padding: 6px 10px 6px 8px; }
+  .cta-arrow { width: 16px; height: 16px; }
+  .cta-arrow svg { width: 9px; height: 9px; }
+
+  /* Tooltips: full-width on small screens */
+  #tooltip { min-width: 0; max-width: 90vw; font-size: 11px; padding: 8px 10px; }
+  #tooltip h3 { font-size: 12px; }
+  .bar-label { width: auto; max-width: 90px; font-size: 10px; }
+  .bar-pct { font-size: 10px; width: auto; min-width: 34px; }
+  .bar-container { height: 10px; }
+
+  /* Map labels: smaller to avoid overlap */
+  .county-label { font-size: 7px; }
+  .county-pct { font-size: 6px; }
+
+  /* Footer */
+  .footer { font-size: 10px; }
+  .legend-hint { font-size: 10px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .county { transition: none; }
   .bar-fill { transition: none; }

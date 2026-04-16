@@ -36,15 +36,6 @@
   .zoom-btn.reset { font-size: 11px; font-weight: 500; }
   .zoom-level { font-size: 10px; color: #94A3B8; text-align: center; padding: 2px 0; font-variant-numeric: tabular-nums; user-select: none; }
 
-  .rank-strip {
-    margin-top: 10px; padding: 8px 12px;
-    background: #fff; border-radius: 8px; border: 1px solid #E2E8F0;
-    display: flex; gap: 14px; overflow-x: auto; font-size: 12px;
-  }
-  .rank-strip .col { white-space: nowrap; display: flex; flex-direction: column; gap: 3px; }
-  .rank-strip .col .h { font-size: 11px; color: #64748B; font-weight: 600; }
-  .rank-strip .col .r { font-variant-numeric: tabular-nums; }
-  .rank-strip .col .r strong { color: #0F172A; }
 </style>
 </head>
 <body>
@@ -67,7 +58,6 @@
       <button class="zoom-btn reset" id="zoomReset" title="Reset view">↺</button>
     </div>
   </div>
-  <div class="rank-strip" id="rankStrip"></div>
   <div class="cta" role="note">
     <span class="cta-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
     <span>Default view shades each country by its winning party. Click a party to drill down to that party's share per country.</span>
@@ -179,7 +169,6 @@
 
     buildLegend();
     render();
-    buildRankStrip();
     autoRefresh(tryRefreshLive, 60000);
   }
 
@@ -194,8 +183,7 @@
         chip.textContent = '2026 live';
         chip.classList.add('live');
         render();
-        buildRankStrip();
-      }
+          }
     } catch (e) {}
   }
 
@@ -311,22 +299,6 @@
     nd.className = 'legend-item';
     nd.innerHTML = `<div class="legend-swatch" style="background:${NO_DATA}"></div>No data`;
     lg.appendChild(nd);
-  }
-
-  function buildRankStrip() {
-    const strip = document.getElementById('rankStrip');
-    const rows = Object.entries(DATA.countries)
-      .sort((a, b) => b[1].total_votes - a[1].total_votes)
-      .slice(0, 10);
-    strip.innerHTML = rows.map(([iso3, c]) => {
-      const lead = Object.entries(c.parties || {}).sort((a,b)=>b[1]-a[1])[0];
-      const col = lead && PARTIES[lead[0]] ? PARTIES[lead[0]].color : '#94A3B8';
-      return `<div class="col">
-        <div class="h">${NAMES[iso3] || iso3}</div>
-        <div class="r"><strong>${c.total_votes.toLocaleString('en-GB')}</strong> votes</div>
-        <div class="r" style="color:${col}">${lead ? lead[0] + ' ' + lead[1].toFixed(1) + '%' : '—'}</div>
-      </div>`;
-    }).join('');
   }
 
   // zoom/pan
