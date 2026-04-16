@@ -8,143 +8,200 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/map.css">
 <style>
-  .gradient-row {
-    display: flex; align-items: center; gap: 10px; margin-top: 10px;
-    font-size: 11px; color: #64748B; font-variant-numeric: tabular-nums;
-  }
-  .gradient-bar {
-    flex: 1; max-width: 420px; height: 12px; border-radius: 3px;
+  .tabs {
+    display: flex; gap: 4px; margin-bottom: 8px;
+    background: #F1F5F9; padding: 4px; border-radius: 8px;
     border: 1px solid #E2E8F0;
-    background: linear-gradient(to right,
-      #B91C1C 0%, #DC2626 10%, #F87171 25%, #FECACA 42%,
-      #F8FAFC 50%,
-      #BFDBFE 58%, #60A5FA 75%, #2563EB 90%, #1E3A8A 100%);
   }
+  .tab {
+    flex: 1; padding: 8px 14px; border: none; background: transparent;
+    font-family: inherit; font-size: 13px; font-weight: 600; color: #64748B;
+    border-radius: 6px; cursor: pointer; transition: background .15s, color .15s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .tab:hover { color: #0F172A; }
+  .tab.active { background: #fff; color: #0F172A; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+  .tab .count { font-weight: 500; color: #94A3B8; font-variant-numeric: tabular-nums; }
+  .tab.active .count { color: #64748B; }
+
+  .stat-strip {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px;
+  }
+  .stat-card {
+    background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;
+    padding: 10px 14px;
+  }
+  .stat-card .label { font-size: 11px; font-weight: 600; color: #64748B; }
+  .stat-card .big {
+    font-size: 22px; font-weight: 700; color: #0F172A;
+    font-variant-numeric: tabular-nums; line-height: 1.1; margin-top: 2px;
+  }
+  .stat-card .big.pos { color: #1D4ED8; }
+  .stat-card .big.neg { color: #B91C1C; }
+  .stat-card .sub { font-size: 11px; color: #94A3B8; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  @media (max-width: 720px) { .stat-strip { grid-template-columns: 1fr; } }
+
+  #chart-container {
+    position: relative; width: 100%;
+    background: #fff; border-radius: 8px; border: 1px solid #E2E8F0;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    flex: 1 1 auto; min-height: 0; padding: 10px 12px;
+  }
+  svg#chart { width: 100%; height: 100%; display: block; font-family: inherit; }
+  .axis line, .axis path { stroke: #CBD5E1; }
+  .axis-label { font-size: 10.5px; fill: #64748B; font-variant-numeric: tabular-nums; font-weight: 500; }
+  .axis-title { font-size: 12px; fill: #334155; font-weight: 600; }
+  .gridline { stroke: #F1F5F9; stroke-width: 1; }
+  .diagonal { stroke: #94A3B8; stroke-width: 1; stroke-dasharray: 4 4; }
+  .diagonal-label { font-size: 10px; fill: #94A3B8; font-style: italic; }
+  .dot { transition: r 0.15s; cursor: help; }
+  .dot:hover { stroke: #0F172A; stroke-width: 1.5; }
+  .dot-label { font-size: 9px; fill: #475569; font-weight: 600; pointer-events: none; }
+
   .empty-overlay {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     pointer-events: none; font-size: 12px; color: #94A3B8; font-style: italic; text-align: center;
     padding: 20px;
   }
-  .mobil-strip {
-    margin-top: 10px; padding: 10px 14px;
-    background: #fff; border-radius: 8px; border: 1px solid #E2E8F0;
-    display: flex; gap: 20px; flex-wrap: wrap; align-items: center;
-    font-size: 12px; color: #475569;
-  }
-  .mobil-strip .big {
-    font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums;
-    line-height: 1;
-  }
-  .mobil-strip .big.pos { color: #1D4ED8; }
-  .mobil-strip .big.neg { color: #B91C1C; }
-  .mobil-strip .label { font-size: 11px; font-weight: 600; color: #475569; }
+
+  #tooltip { min-width: 220px; }
 </style>
 </head>
 <body>
 <div class="container">
   <div class="header">
     <h1>Bulgaria 2026 · Turnout change vs Oct 2024</h1>
-    <div class="subtitle">Mobilisation signal per oblast — percentage-point change in turnout at the same snapshot time as 2024's final</div>
+    <div class="subtitle" id="subtitle">Direct comparison at the same snapshot · each dot is an oblast · above the diagonal = higher turnout than 2024</div>
     <div class="status-row">
       <span class="last-updated" id="lastUpdated">Last updated: –</span>
-      <span class="counted-pill" id="countedPill"></span>
     </div>
   </div>
-  <div id="map-container">
-    <svg id="map" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet"></svg>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" role="tab" data-layer="oblast">Oblasts <span class="count">28</span></button>
+    <button class="tab" role="tab" data-layer="muni">Municipalities <span class="count">265</span></button>
+  </div>
+
+  <div class="stat-strip" id="statStrip">
+    <div class="stat-card">
+      <div class="label">National Δ vs 2024</div>
+      <div class="big" id="natDelta">—</div>
+      <div class="sub" id="natSub">awaiting first 2026 snapshot</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Most mobilised</div>
+      <div class="big pos" id="topMob">—</div>
+      <div class="sub" id="topSub"></div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Least mobilised</div>
+      <div class="big neg" id="botMob">—</div>
+      <div class="sub" id="botSub"></div>
+    </div>
+  </div>
+
+  <div id="chart-container">
+    <svg id="chart"></svg>
     <div id="tooltip"></div>
     <div class="empty-overlay" id="emptyOverlay" style="display:none"></div>
   </div>
-  <div class="mobil-strip" id="mobStrip">
-    <div>
-      <div class="label">National turnout change vs 2024</div>
-      <div class="big" id="natDelta">—</div>
-    </div>
-    <div>
-      <div class="label">Most-mobilised oblast</div>
-      <div id="topMob">—</div>
-    </div>
-    <div>
-      <div class="label">Least-mobilised oblast</div>
-      <div id="botMob">—</div>
-    </div>
-  </div>
-  <div class="gradient-row">
-    <span>−10 pp</span>
-    <div class="gradient-bar"></div>
-    <span>+10 pp</span>
-  </div>
+
   <div class="footer">· Chart made by Andrei Miclea · Source: Central Election Commission (CIK)</div>
 </div>
 
 <script src="assets/map-utils.js"></script>
 <script>
 (function () {
-  const { bbox, makeProjection, featurePath, featureCentroid, isLightFill,
-          loadResults, autoRefresh, formatTs, setCountedPill, setLiveDot } = window.EE;
-  const SVG_W = 1000, SVG_H = 600;
-  const NO_DATA = '#E2E8F0';
+  const { loadResults, autoRefresh, formatTs, setLiveDot } = window.EE;
 
-  const NAMES = {}, PATHS = {}, CENTROIDS = {};
-  let BASELINE = null;
-  let live2026 = {};        // BG-id -> current turnout %
-  let nat2026 = null;       // latest national snapshot %
-  const NAT_2024 = 38.94;
+  const NAT_2024_TURNOUT = 38.94;
 
-  // Diverging scale: red (drop) → white (0) → blue (rise), anchored at ±10 pp
-  function deltaShade(d) {
-    if (d === null || d === undefined) return NO_DATA;
-    const t = Math.max(-1, Math.min(1, d / 10));
-    if (Math.abs(t) < 0.01) return '#F8FAFC';
-    // stops from CSS gradient
-    const stops = t < 0
-      ? [[0, [185, 28, 28]], [0.2, [220, 38, 38]], [0.5, [248, 113, 113]], [0.84, [254, 202, 202]], [1, [248, 250, 252]]]
-      : [[0, [248, 250, 252]], [0.16, [191, 219, 254]], [0.5, [96, 165, 250]], [0.8, [37, 99, 235]], [1, [30, 58, 138]]];
-    const x = t < 0 ? 1 - (-t) : t;
-    for (let i = 0; i < stops.length - 1; i++) {
-      const [a, ca] = stops[i], [b, cb] = stops[i + 1];
-      if (x >= a && x <= b) {
-        const k = (x - a) / (b - a);
-        return `rgb(${Math.round(ca[0] + (cb[0]-ca[0])*k)},${Math.round(ca[1]+(cb[1]-ca[1])*k)},${Math.round(ca[2]+(cb[2]-ca[2])*k)})`;
-      }
-    }
-    return '#F8FAFC';
-  }
+  // Oct 2024 oblast final turnouts (from baseline_turnout_2024.json)
+  let baselineOblast = null;       // { BG01: 42.49, ... }
+  let baselineMuni = null;         // { BLG01: 46.76, ... } — not pre-built, loaded from post-count if present
+  let baselineOblastNames = null;  // { BG01: "Blagoevgrad", ... }
+  let baselineMuniNames = null;    // { BLG01: "Bansko", ... }
+
+  let live2026Oblast = {};
+  let live2026Muni = {};
+  let nat2026 = null;
+
+  let currentLayer = 'oblast';
+  try {
+    const s = localStorage.getItem('bgTurnoutChangeLayer');
+    if (s === 'oblast' || s === 'muni') currentLayer = s;
+  } catch (e) {}
 
   async function init() {
-    const [geo, baseline] = await Promise.all([
+    const [geoOb, baseOb, baseMu] = await Promise.all([
       fetch('bg.json').then(r => r.json()),
       fetch('baseline_turnout_2024.json').then(r => r.json()),
+      fetch('baseline_2024_municipalities.json').then(r => r.json()),
     ]);
-    BASELINE = baseline.oblast_final_turnout_2024;
-
-    const bx = bbox(geo.features);
-    const proj = makeProjection(bx, SVG_W, SVG_H);
-    geo.features.forEach(f => {
-      const id = f.properties.id;
-      NAMES[id] = f.properties.name;
-      PATHS[id] = featurePath(f, proj);
-      CENTROIDS[id] = featureCentroid(f, proj);
+    baselineOblast = baseOb.oblast_final_turnout_2024;
+    baselineOblastNames = {};
+    geoOb.features.forEach(f => {
+      baselineOblastNames[f.properties.id] = f.properties.name;
     });
-    if (CENTROIDS.BG22 && CENTROIDS.BG23) {
-      CENTROIDS.BG23 = { cx: CENTROIDS.BG22.cx + 50, cy: CENTROIDS.BG22.cy - 30 };
+    // Municipality names come from the baseline file; turnout comes from a separate
+    // baseline file if/when we publish one. For now we only have Oct 2024 muni
+    // turnout from the post-count test we ran; if it's on disk as
+    // baseline_turnout_2024_municipalities.json, pick it up.
+    baselineMuniNames = {};
+    for (const [id, row] of Object.entries(baseMu)) {
+      baselineMuniNames[id] = row.name_en || row.name || id;
     }
+    try {
+      const bm = await fetch('baseline_turnout_2024_municipalities.json').then(r => r.json());
+      baselineMuni = bm.municipality_final_turnout_2024 || null;
+    } catch (e) {
+      baselineMuni = null;
+    }
+
+    // tabs
+    document.querySelectorAll('.tab').forEach(btn => {
+      const a = btn.dataset.layer === currentLayer;
+      btn.classList.toggle('active', a);
+      btn.setAttribute('aria-selected', a ? 'true' : 'false');
+      btn.addEventListener('click', () => setLayer(btn.dataset.layer));
+    });
+    updateSubtitle();
 
     await refresh();
     autoRefresh(refresh, 300000);
+    window.addEventListener('resize', () => { if (resizeTimer) clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 150); });
+  }
+  let resizeTimer = null;
+
+  function setLayer(l) {
+    if (l === currentLayer) return;
+    currentLayer = l;
+    try { localStorage.setItem('bgTurnoutChangeLayer', l); } catch (e) {}
+    document.querySelectorAll('.tab').forEach(btn => {
+      const a = btn.dataset.layer === l;
+      btn.classList.toggle('active', a);
+      btn.setAttribute('aria-selected', a ? 'true' : 'false');
+    });
+    updateSubtitle();
+    render();
+  }
+  function updateSubtitle() {
+    document.getElementById('subtitle').textContent = currentLayer === 'muni'
+      ? 'Direct comparison at the same snapshot · each dot is a municipality · above the diagonal = higher turnout than 2024 · populated post-count'
+      : 'Direct comparison at the same snapshot · each dot is an oblast · above the diagonal = higher turnout than 2024';
   }
 
   async function refresh() {
     const d = await loadResults('results_live.json');
     document.getElementById('lastUpdated').textContent = 'Last updated: ' + formatTs(d.lastUpdated);
     setLiveDot(document.getElementById('lastUpdated'), d.processingPctDomestic > 0 && d.processingPctDomestic < 100);
-    setCountedPill(document.getElementById('countedPill'), d.processingPctDomestic);
 
-    live2026 = {};
+    live2026Oblast = {};
     for (const [id, row] of Object.entries(d.oblastList || {})) {
-      if (typeof row.turnout === 'number' && row.turnout > 0) live2026[id] = row.turnout;
+      if (typeof row.turnout === 'number' && row.turnout > 0) live2026Oblast[id] = row.turnout;
     }
-    // Take national from the latest snapshot (20:00 > 16:00 > 11:00)
+    live2026Muni = d.municipalityTurnout || {};
+
     const hist = (d.turnout && d.turnout.nationalHistory) || {};
     nat2026 = null;
     for (const t of ['20:00', '16:00', '11:00']) {
@@ -154,103 +211,186 @@
   }
 
   function render() {
-    const svg = document.getElementById('map');
+    const svg = document.getElementById('chart');
     const ns = 'http://www.w3.org/2000/svg';
     svg.innerHTML = '';
 
-    const ids = Object.keys(PATHS);
-    const deltas = {};
-    ids.forEach(id => {
-      const b = BASELINE[id], c = live2026[id];
-      if (typeof b === 'number' && typeof c === 'number') deltas[id] = +(c - b).toFixed(2);
-    });
+    const rect = svg.getBoundingClientRect();
+    const W = Math.max(400, Math.round(rect.width));
+    const H = Math.max(300, Math.round(rect.height));
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
 
-    ids.forEach(id => {
-      const d = deltas[id];
-      const fill = (d === undefined) ? NO_DATA : deltaShade(d);
-      const p = document.createElementNS(ns, 'path');
-      p.setAttribute('d', PATHS[id]); p.setAttribute('class', 'county'); p.setAttribute('fill', fill);
-      p.addEventListener('mouseenter', e => showTooltip(e, id));
-      p.addEventListener('mousemove', moveTooltip);
-      p.addEventListener('mouseleave', () => document.getElementById('tooltip').style.display = 'none');
-      svg.appendChild(p);
-    });
-    ids.forEach(id => {
-      const d = deltas[id];
-      const fill = (d === undefined) ? NO_DATA : deltaShade(d);
-      const light = isLightFill(fill);
-      const { cx, cy } = CENTROIDS[id];
-      const t = document.createElementNS(ns, 'text');
-      t.setAttribute('x', cx); t.setAttribute('y', cy + (d !== undefined ? -3 : 3));
-      t.setAttribute('class', 'county-label' + (light ? '' : ' light'));
-      t.textContent = NAMES[id] || id;
-      svg.appendChild(t);
-      if (d !== undefined) {
-        const pc = document.createElementNS(ns, 'text');
-        pc.setAttribute('x', cx); pc.setAttribute('y', cy + 8);
-        pc.setAttribute('class', 'county-pct' + (light ? '' : ' light'));
-        pc.textContent = (d > 0 ? '+' : '') + d.toFixed(1) + 'pp';
-        svg.appendChild(pc);
+    const M = { t: 18, r: 22, b: 40, l: 48 };
+    const pW = W - M.l - M.r, pH = H - M.t - M.b;
+
+    // scale anchored at 0-70% for both axes (same as turnout-trend)
+    const yMin = 0, yMax = 70;
+    const xMin = 0, xMax = 70;
+    const xS = v => M.l + ((v - xMin) / (xMax - xMin)) * pW;
+    const yS = v => M.t + pH - ((v - yMin) / (yMax - yMin)) * pH;
+
+    // gridlines + ticks every 10%
+    for (let v = 0; v <= 70; v += 10) {
+      const yy = yS(v), xx = xS(v);
+      // horizontal
+      const hl = document.createElementNS(ns, 'line');
+      hl.setAttribute('x1', M.l); hl.setAttribute('x2', M.l + pW);
+      hl.setAttribute('y1', yy); hl.setAttribute('y2', yy);
+      hl.setAttribute('class', 'gridline');
+      svg.appendChild(hl);
+      const ly = document.createElementNS(ns, 'text');
+      ly.setAttribute('x', M.l - 6); ly.setAttribute('y', yy + 3);
+      ly.setAttribute('text-anchor', 'end'); ly.setAttribute('class', 'axis-label');
+      ly.textContent = v + '%';
+      svg.appendChild(ly);
+      // vertical
+      const vl = document.createElementNS(ns, 'line');
+      vl.setAttribute('x1', xx); vl.setAttribute('x2', xx);
+      vl.setAttribute('y1', M.t); vl.setAttribute('y2', M.t + pH);
+      vl.setAttribute('class', 'gridline');
+      svg.appendChild(vl);
+      const lx = document.createElementNS(ns, 'text');
+      lx.setAttribute('x', xx); lx.setAttribute('y', M.t + pH + 14);
+      lx.setAttribute('text-anchor', 'middle'); lx.setAttribute('class', 'axis-label');
+      lx.textContent = v + '%';
+      svg.appendChild(lx);
+    }
+
+    // axis titles
+    const axY = document.createElementNS(ns, 'text');
+    axY.setAttribute('transform', `translate(12,${M.t + pH / 2}) rotate(-90)`);
+    axY.setAttribute('text-anchor', 'middle'); axY.setAttribute('class', 'axis-title');
+    axY.textContent = '2026 turnout (%)';
+    svg.appendChild(axY);
+    const axX = document.createElementNS(ns, 'text');
+    axX.setAttribute('x', M.l + pW / 2); axX.setAttribute('y', M.t + pH + 34);
+    axX.setAttribute('text-anchor', 'middle'); axX.setAttribute('class', 'axis-title');
+    axX.textContent = 'Oct 2024 turnout (%)';
+    svg.appendChild(axX);
+
+    // diagonal y=x
+    const diag = document.createElementNS(ns, 'line');
+    diag.setAttribute('x1', xS(xMin)); diag.setAttribute('y1', yS(xMin));
+    diag.setAttribute('x2', xS(xMax)); diag.setAttribute('y2', yS(xMax));
+    diag.setAttribute('class', 'diagonal');
+    svg.appendChild(diag);
+
+    const diagLbl = document.createElementNS(ns, 'text');
+    diagLbl.setAttribute('x', xS(35)); diagLbl.setAttribute('y', yS(39));
+    diagLbl.setAttribute('class', 'diagonal-label');
+    diagLbl.setAttribute('text-anchor', 'middle');
+    diagLbl.textContent = '↑ higher than 2024 ·  ↓ lower than 2024';
+    svg.appendChild(diagLbl);
+
+    // dots
+    const base = currentLayer === 'muni' ? baselineMuni : baselineOblast;
+    const live = currentLayer === 'muni' ? live2026Muni  : live2026Oblast;
+    const names = currentLayer === 'muni' ? baselineMuniNames : baselineOblastNames;
+
+    const deltas = [];
+    if (base && live) {
+      for (const [id, b] of Object.entries(base)) {
+        const c = live[id];
+        if (typeof b !== 'number' || typeof c !== 'number') continue;
+        deltas.push({ id, b, c, d: +(c - b).toFixed(2) });
       }
-    });
+    }
 
-    // Overlay + summary strip
+    // Draw dots (oblasts labeled; munis too dense for labels)
+    for (const p of deltas) {
+      const cx = xS(p.b), cy = yS(p.c);
+      const above = p.c >= p.b;
+      const dot = document.createElementNS(ns, 'circle');
+      dot.setAttribute('cx', cx); dot.setAttribute('cy', cy);
+      dot.setAttribute('r', currentLayer === 'muni' ? 3 : 5.5);
+      dot.setAttribute('fill', above ? '#2563EB' : '#B91C1C');
+      dot.setAttribute('fill-opacity', currentLayer === 'muni' ? '0.45' : '0.85');
+      dot.setAttribute('stroke', '#fff');
+      dot.setAttribute('stroke-width', '1');
+      dot.setAttribute('class', 'dot');
+      dot.addEventListener('mouseenter', e => showTooltip(e, p, names[p.id] || p.id));
+      dot.addEventListener('mousemove', moveTooltip);
+      dot.addEventListener('mouseleave', () => document.getElementById('tooltip').style.display = 'none');
+      svg.appendChild(dot);
+
+      if (currentLayer === 'oblast') {
+        const lbl = document.createElementNS(ns, 'text');
+        lbl.setAttribute('x', cx + 7); lbl.setAttribute('y', cy + 3);
+        lbl.setAttribute('class', 'dot-label');
+        lbl.textContent = names[p.id] || p.id;
+        svg.appendChild(lbl);
+      }
+    }
+
+    // empty state
     const overlay = document.getElementById('emptyOverlay');
-    if (Object.keys(deltas).length === 0) {
+    if (deltas.length === 0) {
       overlay.style.display = 'flex';
-      overlay.textContent = 'Awaiting 2026 turnout data. Mobilisation signal appears from the 11:00 EEST snapshot onward.';
+      if (currentLayer === 'muni') {
+        overlay.innerHTML = !baselineMuni
+          ? 'Municipality-level turnout comparison requires post-count data for both 2024 and 2026. Oct 2024 baseline is built by <code>post_count.py</code>; run it once to enable this tab.'
+          : 'Awaiting 2026 post-count municipality turnout (~2–5 days after 19 April).';
+      } else {
+        overlay.textContent = 'Awaiting 2026 turnout data. Dots appear as the scraper writes the 11:00 EEST snapshot.';
+      }
     } else {
       overlay.style.display = 'none';
     }
 
-    // Summary: national delta + top/bottom oblasts
-    const nat = document.getElementById('natDelta');
-    if (typeof nat2026 === 'number') {
-      const nd = +(nat2026 - NAT_2024).toFixed(2);
-      nat.textContent = (nd > 0 ? '+' : '') + nd.toFixed(2) + ' pp';
-      nat.className = 'big ' + (nd > 0 ? 'pos' : nd < 0 ? 'neg' : '');
-    } else {
-      nat.textContent = '—';
-      nat.className = 'big';
-    }
-    const entries = Object.entries(deltas);
-    const topEl = document.getElementById('topMob');
-    const botEl = document.getElementById('botMob');
-    if (entries.length === 0) {
-      topEl.textContent = '—';
-      botEl.textContent = '—';
-    } else {
-      const sorted = entries.slice().sort((a, b) => b[1] - a[1]);
-      const top = sorted[0], bot = sorted[sorted.length - 1];
-      topEl.innerHTML = `<strong>${NAMES[top[0]] || top[0]}</strong> <span style="color:#1D4ED8;font-weight:600">${top[1] > 0 ? '+' : ''}${top[1].toFixed(2)} pp</span>`;
-      botEl.innerHTML = `<strong>${NAMES[bot[0]] || bot[0]}</strong> <span style="color:#B91C1C;font-weight:600">${bot[1] > 0 ? '+' : ''}${bot[1].toFixed(2)} pp</span>`;
-    }
+    // update stat strip (always from oblast data since that's live)
+    updateStats(deltas);
   }
 
-  function showTooltip(e, id) {
-    const tt = document.getElementById('tooltip');
-    const b = BASELINE[id], c = live2026[id];
-    let body;
-    if (typeof b === 'number' && typeof c === 'number') {
-      const d = +(c - b).toFixed(2);
-      const color = d > 0 ? '#1D4ED8' : d < 0 ? '#B91C1C' : '#334155';
-      body = `
-        <div class="bar-row"><div class="bar-label">Oct 2024 final</div><div class="bar-pct">${b.toFixed(2)}%</div></div>
-        <div class="bar-row"><div class="bar-label">2026 latest</div><div class="bar-pct">${c.toFixed(2)}%</div></div>
-        <div class="bar-row"><div class="bar-label"><strong>Change</strong></div><div class="bar-pct" style="color:${color};font-weight:700">${d > 0 ? '+' : ''}${d.toFixed(2)} pp</div></div>`;
+  function updateStats(deltas) {
+    // National Δ
+    const natEl = document.getElementById('natDelta');
+    const natSub = document.getElementById('natSub');
+    if (typeof nat2026 === 'number') {
+      const d = +(nat2026 - NAT_2024_TURNOUT).toFixed(2);
+      natEl.textContent = (d > 0 ? '+' : '') + d.toFixed(2) + ' pp';
+      natEl.className = 'big ' + (d > 0 ? 'pos' : d < 0 ? 'neg' : '');
+      natSub.textContent = `${nat2026.toFixed(2)}% (2026) vs ${NAT_2024_TURNOUT.toFixed(2)}% (Oct 2024 final)`;
     } else {
-      body = `<div class="bar-row"><div class="bar-label">Oct 2024 final</div><div class="bar-pct">${typeof b === 'number' ? b.toFixed(2) + '%' : '—'}</div></div>
-              <div class="bar-row"><div class="bar-label">2026 latest</div><div class="bar-pct">—</div></div>`;
+      natEl.textContent = '—'; natEl.className = 'big';
+      natSub.textContent = 'awaiting first 2026 snapshot';
     }
-    tt.innerHTML = `<h3>${NAMES[id] || id}</h3>${body}`;
+
+    // Top / bottom mobilisation (always oblast-level for reliability)
+    const obDeltas = [];
+    for (const [id, b] of Object.entries(baselineOblast || {})) {
+      const c = live2026Oblast[id];
+      if (typeof c === 'number') obDeltas.push({ id, d: +(c - b).toFixed(2) });
+    }
+    const topEl = document.getElementById('topMob'); const topSub = document.getElementById('topSub');
+    const botEl = document.getElementById('botMob'); const botSub = document.getElementById('botSub');
+    if (obDeltas.length === 0) {
+      topEl.textContent = '—'; topSub.textContent = '';
+      botEl.textContent = '—'; botSub.textContent = '';
+      return;
+    }
+    obDeltas.sort((a, b) => b.d - a.d);
+    const top = obDeltas[0], bot = obDeltas[obDeltas.length - 1];
+    topEl.textContent = (top.d > 0 ? '+' : '') + top.d.toFixed(2) + ' pp';
+    topSub.textContent = (baselineOblastNames && baselineOblastNames[top.id]) || top.id;
+    botEl.textContent = (bot.d > 0 ? '+' : '') + bot.d.toFixed(2) + ' pp';
+    botSub.textContent = (baselineOblastNames && baselineOblastNames[bot.id]) || bot.id;
+  }
+
+  function showTooltip(e, p, name) {
+    const tt = document.getElementById('tooltip');
+    const color = p.d > 0 ? '#1D4ED8' : p.d < 0 ? '#B91C1C' : '#334155';
+    tt.innerHTML = `<h3>${name}</h3>
+      <div class="bar-row"><div class="bar-label">Oct 2024 final</div><div class="bar-pct">${p.b.toFixed(2)}%</div></div>
+      <div class="bar-row"><div class="bar-label">2026 latest</div><div class="bar-pct">${p.c.toFixed(2)}%</div></div>
+      <div class="bar-row"><div class="bar-label"><strong>Change</strong></div><div class="bar-pct" style="color:${color};font-weight:700">${p.d > 0 ? '+' : ''}${p.d.toFixed(2)} pp</div></div>`;
     tt.style.display = 'block';
     moveTooltip(e);
   }
   function moveTooltip(e) {
     const tt = document.getElementById('tooltip');
-    const rect = document.getElementById('map-container').getBoundingClientRect();
+    const rect = document.getElementById('chart-container').getBoundingClientRect();
     let left = e.clientX - rect.left + 15;
-    if (left + 260 > rect.width) left = e.clientX - rect.left - 260;
+    if (left + 240 > rect.width) left = e.clientX - rect.left - 240;
     tt.style.left = left + 'px'; tt.style.top = (e.clientY - rect.top - 10) + 'px';
   }
 

@@ -58,7 +58,7 @@
     </div>
   </div>
   <div id="map-container">
-    <svg id="map" viewBox="-180 -85 360 170" preserveAspectRatio="xMidYMid meet"></svg>
+    <svg id="map" viewBox="0 0 900 450" preserveAspectRatio="xMidYMid meet"></svg>
     <div id="tooltip"></div>
     <div class="zoom-controls">
       <button class="zoom-btn" id="zoomIn" title="Zoom in">+</button>
@@ -82,11 +82,13 @@
   const { isLightFill, cssId, partyShade, partyMaxPct,
           loadResults, autoRefresh, formatTs } = window.EE;
   const NO_DATA = '#E2E8F0';
-  const W = 900, H = 420;
+  // 900×450 gives a 2:1 aspect ratio matching our −170..180 × −55..78 view
+  const W = 900, H = 450;
 
-  // Equirectangular projection cropped to where the Bulgarian diaspora lives
-  // (most of Europe + North America + Middle East). Default view.
-  const VIEW = { lonMin: -130, lonMax: 50, latMin: 10, latMax: 72 };
+  // Full-world equirectangular projection — Bulgarians vote from every
+  // inhabited continent; crop Antarctica and keep some breathing room at
+  // the poles so labels don't feel squeezed.
+  const VIEW = { lonMin: -170, lonMax: 180, latMin: -55, latMax: 78 };
 
   const PARTIES = {}, PARTY_ORDER = [];
   const PATHS = {}, NAMES = {};
@@ -213,20 +215,8 @@
     svg.innerHTML = '';
     applyViewBox();
 
-    // split-stripe defs
-    const defs = document.createElementNS(ns, 'defs');
-    for (const [key, p] of Object.entries(PARTIES)) {
-      if (!p.color2) continue;
-      const pat = document.createElementNS(ns, 'pattern');
-      pat.setAttribute('id', 'wsplit-' + cssId(key));
-      pat.setAttribute('patternUnits', 'userSpaceOnUse');
-      pat.setAttribute('width', '4'); pat.setAttribute('height', '4');
-      pat.setAttribute('patternTransform', 'rotate(45)');
-      const r1 = document.createElementNS(ns, 'rect'); r1.setAttribute('x','0'); r1.setAttribute('y','0'); r1.setAttribute('width','2'); r1.setAttribute('height','4'); r1.setAttribute('fill', p.color);
-      const r2 = document.createElementNS(ns, 'rect'); r2.setAttribute('x','2'); r2.setAttribute('y','0'); r2.setAttribute('width','2'); r2.setAttribute('height','4'); r2.setAttribute('fill', p.color2);
-      pat.appendChild(r1); pat.appendChild(r2); defs.appendChild(pat);
-    }
-    svg.appendChild(defs);
+    // Solid fills only — diagonal-stripe patterns read as noise at country scale.
+    // The split-colour meaning is still preserved in the legend swatches.
 
     // ocean background
     const ocean = document.createElementNS(ns, 'rect');
@@ -250,10 +240,7 @@
         fill = partyShade(pct, maxForParty, partyColor);
       } else {
         const w = countryWinner(iso3);
-        if (w && PARTIES[w.party]) {
-          const pw = PARTIES[w.party];
-          fill = pw.color2 ? `url(#wsplit-${cssId(w.party)})` : pw.color;
-        } else fill = NO_DATA;
+        fill = w && PARTIES[w.party] ? PARTIES[w.party].color : NO_DATA;
       }
       const p = document.createElementNS(ns, 'path');
       p.setAttribute('d', d);
