@@ -123,7 +123,7 @@
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
 
     const [world, baseline] = await Promise.all([
-      fetch('world.json').then(r => r.json()),
+      fetch('world.geojson').then(r => r.json()),
       fetch('baseline_diaspora_2024.json').then(r => r.json()),
     ]);
     world.features.forEach(f => {
