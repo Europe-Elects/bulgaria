@@ -148,8 +148,8 @@
         ['PP-DB','PP-DB (RE | EPP)','#FFD700','#3399FF'],
         ['Vazrazhdane','Vazrazhdane (ESN)','#70463A',null],
         ['DPS-NN','DPS-NN (NI)','#777777',null],
-        ['BSP-UL','BSP-UL (S&D)','#FF0000',null],
-        ['ITN','ITN (PfE)','#0000FF',null],
+        ['BSP-OL','BSP-OL (S&D)','#FF0000',null],
+        ['ITN','ITN (ECR)','#0000FF',null],
         ['APS','APS (RE)','#FFD700',null],
         ['MECh','MECh (NI)','#999999',null],
         ['Velichie','Velichie (NI)','#999999',null],
@@ -283,10 +283,7 @@
       btn.type = 'button';
       btn.className = 'legend-item clickable' + (currentView === key ? ' active' : '');
       btn.dataset.party = key;
-      const sw = p.color2
-        ? `linear-gradient(135deg, ${p.color} 0 50%, ${p.color2} 50% 100%)`
-        : p.color;
-      btn.innerHTML = `<div class="legend-swatch" style="background:${sw}"></div>${p.name}`;
+      btn.innerHTML = `<div class="legend-swatch" style="background:${p.color}"></div>${p.name}`;
       btn.onclick = () => {
         currentView = currentView === key ? 'winner' : key;
         document.querySelectorAll('.legend-item.clickable').forEach(el =>
