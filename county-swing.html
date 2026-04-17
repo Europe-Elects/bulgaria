@@ -191,11 +191,17 @@
 
     // pass 1: fills
     ids.forEach(id => {
-      let fill;
+      let fill, fillOpacity = null;
       if (singleParty) {
         const d = computeSwing(id, singleParty);
         if (d !== null) anySwing = true;
-        fill = swingShade(d, PARTIES[singleParty].color);
+        const sp = PARTIES[singleParty];
+        if (sp && sp.color2) {
+          fill = `url(#split-${cssId(singleParty)})`;
+          fillOpacity = d !== null ? Math.max(0.1, Math.min(1, Math.abs(d) / 10)) : 0.05;
+        } else {
+          fill = swingShade(d, sp.color);
+        }
       } else {
         const best = biggestGainer(id);
         if (best) {
@@ -205,6 +211,7 @@
           const mag = Math.min(1, best.delta / 10);
           if (p.color2) {
             fill = `url(#split-${cssId(best.party)})`;
+            fillOpacity = Math.max(0.15, mag);
           } else {
             const base = hexToRgb(p.color);
             const r = Math.round(248 + (base.r - 248) * mag);
@@ -218,6 +225,7 @@
       }
       const p = document.createElementNS(ns, 'path');
       p.setAttribute('d', PATHS[id]); p.setAttribute('class', 'county'); p.setAttribute('fill', fill);
+      if (fillOpacity !== null) p.setAttribute('fill-opacity', fillOpacity);
       p.addEventListener('mouseenter', e => showTooltip(e, id));
       p.addEventListener('mousemove', moveTooltip);
       p.addEventListener('mouseleave', () => document.getElementById('tooltip').style.display = 'none');

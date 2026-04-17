@@ -180,21 +180,28 @@
     const singleParty = currentView !== 'biggest' ? currentView : null;
 
     ids.forEach(id => {
-      let fill;
+      let fill, fillOpacity = null;
       if (singleParty) {
         const d = computeSwing(id, singleParty);
         if (d !== null) anySwing = true;
-        fill = swingShade(d, PARTIES[singleParty].color);
+        const sp = PARTIES[singleParty];
+        if (sp && sp.color2) {
+          fill = `url(#split-${cssId(singleParty)})`;
+          fillOpacity = d !== null ? Math.max(0.1, Math.min(1, Math.abs(d) / 10)) : 0.05;
+        } else {
+          fill = swingShade(d, sp.color);
+        }
       } else {
         const best = biggestGainer(id);
         if (best) {
           anySwing = true;
-          const p = PARTIES[best.party];
+          const p2 = PARTIES[best.party];
           const mag = Math.min(1, best.delta / 10);
-          if (p.color2) {
+          if (p2.color2) {
             fill = `url(#split-${cssId(best.party)})`;
+            fillOpacity = Math.max(0.15, mag);
           } else {
-            const b = hexToRgb(p.color);
+            const b = hexToRgb(p2.color);
             fill = `rgb(${Math.round(248+(b.r-248)*mag)},${Math.round(250+(b.g-250)*mag)},${Math.round(252+(b.b-252)*mag)})`;
           }
         } else {
@@ -203,6 +210,7 @@
       }
       const p = document.createElementNS(ns, 'path');
       p.setAttribute('d', PATHS[id]); p.setAttribute('class', 'county'); p.setAttribute('fill', fill);
+      if (fillOpacity !== null) p.setAttribute('fill-opacity', fillOpacity);
       p.addEventListener('mouseenter', e => showTooltip(e, id));
       p.addEventListener('mousemove', moveTooltip);
       p.addEventListener('mouseleave', () => document.getElementById('tooltip').style.display = 'none');

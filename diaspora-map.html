@@ -151,8 +151,8 @@
         ['BSP-OL','BSP-OL (S&D)','#FF0000',null],
         ['ITN','ITN (ECR)','#0000FF',null],
         ['APS','APS (RE)','#FFD700',null],
-        ['MECh','MECh (NI)','#999999',null],
-        ['Velichie','Velichie (NI)','#999999',null],
+        ['MECh','MECh (*)','#999999',null],
+        ['Velichie','Velichie (*)','#999999',null],
       ];
       META.forEach(([k,n,c,c2]) => {
         PARTIES[k] = { color: c, color2: c2, name: n };
@@ -203,8 +203,20 @@
     svg.innerHTML = '';
     applyViewBox();
 
-    // Solid fills only — diagonal-stripe patterns read as noise at country scale.
-    // The split-colour meaning is still preserved in the legend swatches.
+    // Split-stripe defs for coalition parties (PP-DB etc.)
+    const defs = document.createElementNS(ns, 'defs');
+    for (const [key, p] of Object.entries(PARTIES)) {
+      if (!p.color2) continue;
+      const pat = document.createElementNS(ns, 'pattern');
+      pat.setAttribute('id', 'wsplit-' + cssId(key));
+      pat.setAttribute('patternUnits', 'userSpaceOnUse');
+      pat.setAttribute('width', '6'); pat.setAttribute('height', '6');
+      pat.setAttribute('patternTransform', 'rotate(45)');
+      const r1 = document.createElementNS(ns, 'rect'); r1.setAttribute('x','0'); r1.setAttribute('y','0'); r1.setAttribute('width','3'); r1.setAttribute('height','6'); r1.setAttribute('fill', p.color);
+      const r2 = document.createElementNS(ns, 'rect'); r2.setAttribute('x','3'); r2.setAttribute('y','0'); r2.setAttribute('width','3'); r2.setAttribute('height','6'); r2.setAttribute('fill', p.color2);
+      pat.appendChild(r1); pat.appendChild(r2); defs.appendChild(pat);
+    }
+    svg.appendChild(defs);
 
     // ocean background
     const ocean = document.createElementNS(ns, 'rect');
@@ -222,18 +234,28 @@
 
     for (const [iso3, d] of Object.entries(PATHS)) {
       const c = DATA.countries[iso3];
-      let fill;
+      let fill, fillOpacity = null;
       if (partyMode) {
         const pct = c && c.parties ? c.parties[currentView] : null;
-        fill = partyShade(pct, maxForParty, partyColor);
+        const pw = PARTIES[currentView];
+        if (pw && pw.color2) {
+          fill = `url(#wsplit-${cssId(currentView)})`;
+          fillOpacity = (pct !== null && pct > 0) ? Math.max(0.15, Math.min(1, pct / Math.max(maxForParty, 0.01))) : 0.05;
+        } else {
+          fill = partyShade(pct, maxForParty, partyColor);
+        }
       } else {
         const w = countryWinner(iso3);
-        fill = w && PARTIES[w.party] ? PARTIES[w.party].color : NO_DATA;
+        if (w && PARTIES[w.party]) {
+          const pw = PARTIES[w.party];
+          fill = pw.color2 ? `url(#wsplit-${cssId(w.party)})` : pw.color;
+        } else fill = NO_DATA;
       }
       const p = document.createElementNS(ns, 'path');
       p.setAttribute('d', d);
       p.setAttribute('class', 'world-country' + (iso3 === 'BGR' ? ' bgr' : ''));
       p.setAttribute('fill', fill);
+      if (fillOpacity !== null) p.setAttribute('fill-opacity', fillOpacity);
       p.addEventListener('mouseenter', e => showTooltip(e, iso3));
       p.addEventListener('mousemove', moveTooltip);
       p.addEventListener('mouseleave', () => document.getElementById('tooltip').style.display = 'none');
@@ -283,7 +305,10 @@
       btn.type = 'button';
       btn.className = 'legend-item clickable' + (currentView === key ? ' active' : '');
       btn.dataset.party = key;
-      btn.innerHTML = `<div class="legend-swatch" style="background:${p.color}"></div>${p.name}`;
+      const sw = p.color2
+        ? `linear-gradient(135deg, ${p.color} 0 50%, ${p.color2} 50% 100%)`
+        : p.color;
+      btn.innerHTML = `<div class="legend-swatch" style="background:${sw}"></div>${p.name}`;
       btn.onclick = () => {
         currentView = currentView === key ? 'winner' : key;
         document.querySelectorAll('.legend-item.clickable').forEach(el =>
