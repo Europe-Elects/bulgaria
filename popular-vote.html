@@ -13,12 +13,12 @@
   .container { max-width: 720px; flex: none; display: block; }
   .viz-container { flex: none; }
   .pv-row {
-    display: grid; grid-template-columns: minmax(140px, auto) 1fr 56px 60px; gap: 8px;
+    display: grid; grid-template-columns: 160px 1fr 56px 60px; gap: 8px;
     align-items: center; padding: 8px 10px; border-radius: 6px;
     font-variant-numeric: tabular-nums;
   }
   .pv-row:hover { background: #F8FAFC; }
-  .pv-name { font-size: 12px; font-weight: 600; color: #0F172A; }
+  .pv-name { font-size: 12px; font-weight: 600; color: #0F172A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pv-bar-container { height: 18px; background: #F1F5F9; border-radius: 4px; overflow: hidden; position: relative; min-width: 0; }
   .pv-bar-fill { height: 100%; transition: width .4s ease; }
   .pv-pct { font-size: 13px; font-weight: 700; color: #0F172A; text-align: right; }
@@ -93,7 +93,7 @@
         : p.color;
       const width = (p.national_pct / max * 100).toFixed(1);
       row.innerHTML = `
-        <div class="pv-name">${p.fullName || p.name}</div>
+        <div class="pv-name">${p.name}</div>
         <div class="pv-bar-container"><div class="pv-bar-fill" style="width:${width}%;background:${barFill}"></div></div>
         <div class="pv-pct">${p.national_pct.toFixed(2)}%</div>
         <div class="pv-votes">${p.national_votes.toLocaleString('en-GB')}</div>`;
