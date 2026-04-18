@@ -32,7 +32,7 @@ h1 { font-size: 20px; font-weight: 700; color: #0F172A; letter-spacing: -0.3px; 
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
 #map-container, .viz-container {
-  position: relative; width: 100%; overflow: hidden;
+  position: relative; width: 100%; overflow: visible;
   background: #fff; border-radius: 8px; border: 1px solid #E2E8F0;
   box-shadow: 0 1px 3px rgba(0,0,0,.06);
   flex: 1 1 auto; min-height: 0;
