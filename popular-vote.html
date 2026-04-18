@@ -68,7 +68,7 @@
     document.getElementById('lastUpdated').textContent = 'Last updated: ' + formatTs(d.lastUpdated);
     setLiveDot(document.getElementById('lastUpdated'), d.processingPctDomestic < 100);
     setCountedPill(document.getElementById('countedPill'), d.processingPctDomestic);
-    render(d.parties || []);
+    render(d.allParties || d.parties || []);
   }
 
   function render(parties) {
