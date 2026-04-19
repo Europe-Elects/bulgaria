@@ -255,14 +255,35 @@
     const M = { t: 18, r: 22, b: 40, l: 48 };
     const pW = W - M.l - M.r, pH = H - M.t - M.b;
 
-    // scale anchored at 0-70% for both axes (same as turnout-trend)
-    const yMin = 0, yMax = 70;
-    const xMin = 0, xMax = 70;
+    // Adaptive domain: fit to data with padding, shared x/y so the diagonal
+    // stays a true 45° line. Fall back to 0–70 when we have no data yet.
+    const baseTmp = currentLayer === 'muni' ? baselineMuni : baselineOblast;
+    const liveTmp = currentLayer === 'muni' ? live2026Muni  : live2026Oblast;
+    const vals = [];
+    if (baseTmp && liveTmp) {
+      for (const [id, b] of Object.entries(baseTmp)) {
+        const c = liveTmp[id];
+        if (typeof b === 'number' && typeof c === 'number') { vals.push(b); vals.push(c); }
+      }
+    }
+    let domMin = 0, domMax = 70;
+    if (vals.length) {
+      const lo = Math.min(...vals), hi = Math.max(...vals);
+      const span = Math.max(hi - lo, 6);
+      const pad = span * 0.2;
+      domMin = Math.max(0, Math.floor((lo - pad) / 5) * 5);
+      domMax = Math.min(100, Math.ceil((hi + pad) / 5) * 5);
+      if (domMax - domMin < 10) domMax = domMin + 10;
+    }
+    const xMin = domMin, xMax = domMax, yMin = domMin, yMax = domMax;
     const xS = v => M.l + ((v - xMin) / (xMax - xMin)) * pW;
     const yS = v => M.t + pH - ((v - yMin) / (yMax - yMin)) * pH;
 
-    // gridlines + ticks every 10%
-    for (let v = 0; v <= 70; v += 10) {
+    // gridlines + ticks — pick a nice step so we show ~5–8 labels
+    const dom = xMax - xMin;
+    const tickStep = dom <= 15 ? 2 : dom <= 30 ? 5 : 10;
+    const tickStart = Math.ceil(xMin / tickStep) * tickStep;
+    for (let v = tickStart; v <= xMax + 1e-6; v += tickStep) {
       const yy = yS(v), xx = xS(v);
       // horizontal
       const hl = document.createElementNS(ns, 'line');
@@ -307,8 +328,9 @@
     diag.setAttribute('class', 'diagonal');
     svg.appendChild(diag);
 
+    const diagMid = (xMin + xMax) / 2;
     const diagLbl = document.createElementNS(ns, 'text');
-    diagLbl.setAttribute('x', xS(35)); diagLbl.setAttribute('y', yS(39));
+    diagLbl.setAttribute('x', xS(diagMid)); diagLbl.setAttribute('y', yS(diagMid + (xMax - xMin) * 0.06));
     diagLbl.setAttribute('class', 'diagonal-label');
     diagLbl.setAttribute('text-anchor', 'middle');
     diagLbl.textContent = '↑ higher than 2024 ·  ↓ lower than 2024';
@@ -328,7 +350,13 @@
       }
     }
 
-    // Draw dots (oblasts labeled; munis too dense for labels)
+    // Label only the outliers (biggest |delta|) at oblast layer — avoids pile-up.
+    let labelSet = null;
+    if (currentLayer === 'oblast' && deltas.length > 0) {
+      const sorted = [...deltas].sort((a,b) => Math.abs(b.d) - Math.abs(a.d));
+      labelSet = new Set(sorted.slice(0, Math.min(6, sorted.length)).map(x => x.id));
+    }
+
     for (const p of deltas) {
       const cx = xS(p.b), cy = yS(p.c);
       const above = p.c >= p.b;
@@ -345,9 +373,13 @@
       dot.addEventListener('mouseleave', () => document.getElementById('tooltip').style.display = 'none');
       svg.appendChild(dot);
 
-      if (currentLayer === 'oblast') {
+      if (labelSet && labelSet.has(p.id)) {
         const lbl = document.createElementNS(ns, 'text');
-        lbl.setAttribute('x', cx + 7); lbl.setAttribute('y', cy + 3);
+        // push label away from the diagonal to reduce overlap with other dots
+        const offX = above ? 8 : -8;
+        const offY = above ? -8 : 14;
+        lbl.setAttribute('x', cx + offX); lbl.setAttribute('y', cy + offY);
+        lbl.setAttribute('text-anchor', above ? 'start' : 'end');
         lbl.setAttribute('class', 'dot-label');
         lbl.textContent = names[p.id] || p.id;
         svg.appendChild(lbl);
