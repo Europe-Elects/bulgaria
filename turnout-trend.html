@@ -107,7 +107,7 @@ svg#chart { width: 100%; height: 100%; display: block; font-family: inherit; }
   .end-badge, .end-badge-final { display: none; }
 }
 .map-logo { position: absolute; top: 8px; left: 8px; z-index: 4; opacity: 0.85; pointer-events: none; }
-.map-logo img { height: 28px; width: auto; display: block; }
+.map-logo img { height: 28px; width: auto; max-width: 120px; max-height: 28px; display: block; }
 </style>
 </head>
 <body>
@@ -119,7 +119,7 @@ svg#chart { width: 100%; height: 100%; display: block; font-family: inherit; }
     </div>
   </div>
   <div id="chart-container">
-    <div class="map-logo"><img src="logo.png" alt="Europe Elects"></div>
+    <div class="map-logo"><img src="logo.png?v=2" alt="Europe Elects"></div>
     <div class="legend-row" id="legend"></div>
     <div class="chart-wrap">
       <svg id="chart"></svg>

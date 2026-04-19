@@ -35,7 +35,7 @@ h1 { font-size: 20px; font-weight: 700; color: #0F172A; letter-spacing: -0.3px; 
   position: absolute; top: 8px; left: 8px; z-index: 4;
   opacity: 0.85; pointer-events: none;
 }
-.map-logo img { height: 28px; width: auto; display: block; }
+.map-logo img { height: 28px; width: auto; max-width: 120px; max-height: 28px; display: block; }
 
 #map-container, .viz-container {
   position: relative; width: 100%; overflow: visible;
