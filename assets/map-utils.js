@@ -178,25 +178,55 @@
   // Pan + zoom helper. Wraps every child of `svg` into a <g> viewport
   // that can be translated and scaled. Call after each render; it
   // attaches the viewport and handlers exactly once per SVG.
+  // opts.controls = { zoomIn, zoomOut, zoomReset, zoomLevel } — DOM IDs or elements
   function enableZoomPan(svg, opts) {
+    opts = opts || {};
     if (!svg || svg.__zoomPanInit) {
-      // already wired — just re-wrap any new children that were appended
-      // outside the existing viewport (buildMap() typically innerHTML=''
-      // then appendChild to svg directly). Re-wrap on each call.
       rewrap(svg);
+      if (svg && svg.__updateZoomLevel) svg.__updateZoomLevel();
       return;
     }
     svg.__zoomPanInit = true;
     rewrap(svg);
 
-    const state = { k: 1, tx: 0, ty: 0, minK: 1, maxK: (opts && opts.maxK) || 12 };
+    const state = { k: 1, tx: 0, ty: 0, minK: 1, maxK: opts.maxK || 12 };
     svg.__zoomPanState = state;
     svg.style.cursor = 'grab';
+
+    const resolve = (x) => typeof x === 'string' ? document.getElementById(x) : x;
+    const ctrls = opts.controls || {};
+    const levelEl = resolve(ctrls.zoomLevel);
+    const updateLevel = () => { if (levelEl) levelEl.textContent = state.k.toFixed(1) + 'x'; };
+    svg.__updateZoomLevel = updateLevel;
 
     const apply = () => {
       const g = svg.__viewport;
       if (g) g.setAttribute('transform', `translate(${state.tx},${state.ty}) scale(${state.k})`);
+      updateLevel();
     };
+
+    // Zoom by factor around the centre of the current viewport
+    const zoomByFactor = (factor) => {
+      const vb = (svg.getAttribute('viewBox') || '').split(/\s+/).map(Number);
+      const vbW = vb[2] || 1000, vbH = vb[3] || 600;
+      // current visible centre in the original (unscaled) coord space
+      const cx = (vbW / 2 - state.tx) / state.k;
+      const cy = (vbH / 2 - state.ty) / state.k;
+      const newK = Math.min(state.maxK, Math.max(state.minK, state.k * factor));
+      if (newK === state.k) return;
+      state.k = newK;
+      state.tx = vbW / 2 - cx * newK;
+      state.ty = vbH / 2 - cy * newK;
+      clampPan(svg); apply();
+    };
+    const resetZoom = () => { state.k = 1; state.tx = 0; state.ty = 0; apply(); };
+
+    const bin = resolve(ctrls.zoomIn);
+    const bout = resolve(ctrls.zoomOut);
+    const brst = resolve(ctrls.zoomReset);
+    if (bin) bin.addEventListener('click', () => zoomByFactor(1.5));
+    if (bout) bout.addEventListener('click', () => zoomByFactor(1/1.5));
+    if (brst) brst.addEventListener('click', resetZoom);
 
     const svgPoint = (clientX, clientY) => {
       const r = svg.getBoundingClientRect();
