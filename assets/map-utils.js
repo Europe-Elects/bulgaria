@@ -175,6 +175,123 @@
     el.classList.toggle('live', !!isLive);
   }
 
+  // Pan + zoom helper. Wraps every child of `svg` into a <g> viewport
+  // that can be translated and scaled. Call after each render; it
+  // attaches the viewport and handlers exactly once per SVG.
+  function enableZoomPan(svg, opts) {
+    if (!svg || svg.__zoomPanInit) {
+      // already wired — just re-wrap any new children that were appended
+      // outside the existing viewport (buildMap() typically innerHTML=''
+      // then appendChild to svg directly). Re-wrap on each call.
+      rewrap(svg);
+      return;
+    }
+    svg.__zoomPanInit = true;
+    rewrap(svg);
+
+    const state = { k: 1, tx: 0, ty: 0, minK: 1, maxK: (opts && opts.maxK) || 12 };
+    svg.__zoomPanState = state;
+    svg.style.cursor = 'grab';
+
+    const apply = () => {
+      const g = svg.__viewport;
+      if (g) g.setAttribute('transform', `translate(${state.tx},${state.ty}) scale(${state.k})`);
+    };
+
+    const svgPoint = (clientX, clientY) => {
+      const r = svg.getBoundingClientRect();
+      const vb = (svg.getAttribute('viewBox') || '').split(/\s+/).map(Number);
+      const vbW = vb[2] || r.width, vbH = vb[3] || r.height;
+      return { x: (clientX - r.left) * (vbW / r.width), y: (clientY - r.top) * (vbH / r.height) };
+    };
+
+    svg.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const p = svgPoint(e.clientX, e.clientY);
+      const dir = e.deltaY < 0 ? 1 : -1;
+      const factor = Math.exp(dir * 0.12);
+      const newK = Math.min(state.maxK, Math.max(state.minK, state.k * factor));
+      // keep the cursor point stable under zoom
+      state.tx = p.x - (p.x - state.tx) * (newK / state.k);
+      state.ty = p.y - (p.y - state.ty) * (newK / state.k);
+      state.k = newK;
+      clampPan(svg);
+      apply();
+    }, { passive: false });
+
+    let dragging = false, lastX = 0, lastY = 0;
+    svg.addEventListener('pointerdown', (e) => {
+      if (state.k <= state.minK + 1e-6) return; // no panning at base zoom
+      dragging = true;
+      lastX = e.clientX; lastY = e.clientY;
+      svg.setPointerCapture(e.pointerId);
+      svg.style.cursor = 'grabbing';
+    });
+    svg.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const r = svg.getBoundingClientRect();
+      const vb = (svg.getAttribute('viewBox') || '').split(/\s+/).map(Number);
+      const vbW = vb[2] || r.width, vbH = vb[3] || r.height;
+      state.tx += (e.clientX - lastX) * (vbW / r.width);
+      state.ty += (e.clientY - lastY) * (vbH / r.height);
+      lastX = e.clientX; lastY = e.clientY;
+      clampPan(svg);
+      apply();
+    });
+    const endDrag = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      try { svg.releasePointerCapture(e.pointerId); } catch (err) {}
+      svg.style.cursor = state.k > state.minK + 1e-6 ? 'grab' : 'grab';
+    };
+    svg.addEventListener('pointerup', endDrag);
+    svg.addEventListener('pointercancel', endDrag);
+
+    svg.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      state.k = 1; state.tx = 0; state.ty = 0;
+      apply();
+    });
+  }
+
+  function rewrap(svg) {
+    const ns = 'http://www.w3.org/2000/svg';
+    let g = svg.__viewport;
+    if (!g || g.parentNode !== svg) {
+      g = document.createElementNS(ns, 'g');
+      g.setAttribute('class', 'viewport');
+      svg.__viewport = g;
+    } else {
+      // already attached; just move any loose children into it
+    }
+    // Move any direct children of svg that aren't the viewport into it,
+    // preserving <defs> at the top level (defs don't need to scale).
+    const toMove = [];
+    for (const c of Array.from(svg.childNodes)) {
+      if (c === g) continue;
+      if (c.nodeType === 1 && c.tagName.toLowerCase() === 'defs') continue;
+      toMove.push(c);
+    }
+    if (g.parentNode !== svg) svg.appendChild(g);
+    toMove.forEach(c => g.appendChild(c));
+    // re-apply transform if state exists
+    const s = svg.__zoomPanState;
+    if (s) g.setAttribute('transform', `translate(${s.tx},${s.ty}) scale(${s.k})`);
+  }
+
+  function clampPan(svg) {
+    const s = svg.__zoomPanState;
+    if (!s) return;
+    const vb = (svg.getAttribute('viewBox') || '').split(/\s+/).map(Number);
+    const vbW = vb[2] || 1000, vbH = vb[3] || 600;
+    // allow panning as long as some of the scaled content overlaps the viewBox
+    const scaledW = vbW * s.k, scaledH = vbH * s.k;
+    const minTx = vbW - scaledW, maxTx = 0;
+    const minTy = vbH - scaledH, maxTy = 0;
+    s.tx = Math.min(maxTx, Math.max(minTx, s.tx));
+    s.ty = Math.min(maxTy, Math.max(minTy, s.ty));
+  }
+
   window.EE = {
     NO_DATA_COLOR, META_KEYS,
     hexToRgb, parseRgb, isLightFill, partyShade, turnoutShade, partyMaxPct, cssId,
@@ -183,5 +300,6 @@
     buildSplitPatterns,
     loadResults, autoRefresh,
     formatTs, setCountedPill, setLiveDot,
+    enableZoomPan,
   };
 })();

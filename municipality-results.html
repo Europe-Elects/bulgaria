@@ -155,9 +155,10 @@ button.legend-item { line-height: 1.4; }
   </div>
   <div class="legend" id="legend"></div>
   <div class="legend-hint" id="legendHint">Click again on the active party to return to the winner view</div>
-  <div class="footer">· Chart made by Andrei Miclea · Source: Central Election Commission (CIK)</div>
+  <div class="footer">· Scroll to zoom, drag to pan, double-click to reset · Chart made by Andrei Miclea · Source: Central Election Commission (CIK)</div>
 </div>
 
+<script src="assets/map-utils.js"></script>
 <script>
 const NO_DATA_COLOR = '#E2E8F0';
 const SVG_W = 1000, SVG_H = 600;
@@ -368,6 +369,7 @@ function buildMap(countyData){
     }
   });
   }
+  if (window.EE && window.EE.enableZoomPan) window.EE.enableZoomPan(svg);
 }
 
 /* --- tooltip --- */

@@ -49,7 +49,7 @@
     <div class="bar" id="swBar"></div>
     <span id="swGainLabel">+</span>
   </div>
-  <div class="footer">· Chart made by Andrei Miclea · Source: Central Election Commission (CIK)</div>
+  <div class="footer">· Scroll to zoom, drag to pan, double-click to reset · Chart made by Andrei Miclea · Source: Central Election Commission (CIK)</div>
 </div>
 
 <script src="assets/map-utils.js"></script>
@@ -235,6 +235,8 @@
     } else {
       swLegend.style.display = 'none';
     }
+
+    if (window.EE && window.EE.enableZoomPan) window.EE.enableZoomPan(svg);
   }
 
   function showTooltip(e, id) {
