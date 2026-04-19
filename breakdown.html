@@ -134,18 +134,19 @@ body {
   .donut-slice { transition: none; }
   @keyframes pulse { 0%, 100% { opacity: 1; } }
 }
-.chart-logo { display: block; height: 32px; width: auto; margin-bottom: 10px; }
+.map-logo { position: absolute; top: 8px; left: 8px; z-index: 4; opacity: 0.85; pointer-events: none; }
+.map-logo img { height: 28px; width: auto; display: block; }
 </style>
 </head>
 <body>
 <div class="container">
   <div class="header">
-    <img src="logo.png" class="chart-logo" alt="Europe Elects logo">
-    <div class="subtitle">National list vote: Capital vs Rest of the country vs Voters abroad</div>
+        <div class="subtitle">National list vote: Capital vs Rest of the country vs Voters abroad</div>
     <div class="last-updated" id="lastUpdated">Last updated: –</div>
     <span id="countedPill" style="display:none; margin-left:6px; font-size:11px; padding:3px 8px; background:#FEF3C7; color:#92400E; border-radius:4px; font-weight:600;"></span>
   </div>
   <div id="chart-container">
+    <div class="map-logo"><img src="logo.png" alt="Europe Elects"></div>
     <div class="legend-row" id="chartLegend"></div>
     <div class="donuts" id="donuts"></div>
     <div id="bdTooltip" role="tooltip"></div>

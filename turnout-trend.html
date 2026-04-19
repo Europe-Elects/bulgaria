@@ -106,19 +106,20 @@ svg#chart { width: 100%; height: 100%; display: block; font-family: inherit; }
   .chart-footnote { font-size: 9.5px; }
   .end-badge, .end-badge-final { display: none; }
 }
-.chart-logo { display: block; height: 32px; width: auto; margin-bottom: 10px; }
+.map-logo { position: absolute; top: 8px; left: 8px; z-index: 4; opacity: 0.85; pointer-events: none; }
+.map-logo img { height: 28px; width: auto; display: block; }
 </style>
 </head>
 <body>
 <div class="container">
   <div class="header">
-    <img src="logo.png" class="chart-logo" alt="Europe Elects logo">
-    <div class="title-block">
+        <div class="title-block">
       <div class="subtitle">Turnout progression through election day — 2026 vs previous elections</div>
       <div class="last-updated" id="lastUpdated">Last updated: –</div>
     </div>
   </div>
   <div id="chart-container">
+    <div class="map-logo"><img src="logo.png" alt="Europe Elects"></div>
     <div class="legend-row" id="legend"></div>
     <div class="chart-wrap">
       <svg id="chart"></svg>

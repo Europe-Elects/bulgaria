@@ -31,7 +31,11 @@ h1 { font-size: 20px; font-weight: 700; color: #0F172A; letter-spacing: -0.3px; 
 }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-.chart-logo { display: block; height: 32px; width: auto; margin-bottom: 10px; }
+.map-logo {
+  position: absolute; top: 8px; left: 8px; z-index: 4;
+  opacity: 0.85; pointer-events: none;
+}
+.map-logo img { height: 28px; width: auto; display: block; }
 
 #map-container, .viz-container {
   position: relative; width: 100%; overflow: visible;

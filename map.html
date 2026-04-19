@@ -135,19 +135,20 @@ button.legend-item { line-height: 1.4; }
   .bar-fill { transition: none; }
   @keyframes pulse { 0%, 100% { opacity: 1; } }
 }
-.chart-logo { display: block; height: 32px; width: auto; margin-bottom: 10px; }
+.map-logo { position: absolute; top: 8px; left: 8px; z-index: 4; opacity: 0.85; pointer-events: none; }
+.map-logo img { height: 28px; width: auto; display: block; }
 </style>
 </head>
 <body>
 <div class="container">
   <div class="header">
-    <img src="logo.png" class="chart-logo" alt="Europe Elects logo">
-    <h1>Bulgaria · Parliamentary Election, 27 October 2024</h1>
+        <h1>Bulgaria · Parliamentary Election, 27 October 2024</h1>
     <div class="subtitle">Party list vote share across 28 oblasts · domestic votes only</div>
     <div class="last-updated" id="lastUpdated">Last updated: –</div>
     <span id="countedPill" style="display:none; margin-left:6px; font-size:11px; padding:3px 8px; background:#FEF3C7; color:#92400E; border-radius:4px; font-weight:600;"></span>
   </div>
   <div id="map-container">
+    <div class="map-logo"><img src="logo.png" alt="Europe Elects"></div>
     <svg id="map"></svg>
     <div id="tooltip"></div>
     <div class="zoom-controls">
