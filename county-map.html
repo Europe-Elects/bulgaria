@@ -18,7 +18,16 @@
       <span class="counted-pill" id="countedPill"></span>
     </div>
   </div>
-  <div id="map-container"><svg id="map" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet"></svg><div id="tooltip"></div></div>
+  <div id="map-container" style="overflow:hidden">
+    <svg id="map" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet"></svg>
+    <div id="tooltip"></div>
+    <div class="zoom-controls">
+      <button class="zoom-btn" id="zoomIn" title="Zoom in">+</button>
+      <div class="zoom-level" id="zoomLevel">1.0x</div>
+      <button class="zoom-btn" id="zoomOut" title="Zoom out">−</button>
+      <button class="zoom-btn reset" id="zoomReset" title="Reset view">↺</button>
+    </div>
+  </div>
   <div class="cta" role="note">
     <span class="cta-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
     <span>Tap a party below to shade the map by its vote share</span>
@@ -138,6 +147,8 @@
         svg.appendChild(pc);
       }
     });
+
+    if (window.EE && window.EE.enableZoomPan) window.EE.enableZoomPan(svg, { controls: { zoomIn: 'zoomIn', zoomOut: 'zoomOut', zoomReset: 'zoomReset', zoomLevel: 'zoomLevel' }, maxK: 12 });
   }
 
   function showTooltip(e, id, row) {

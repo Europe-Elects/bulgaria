@@ -40,6 +40,11 @@ h1 { font-size: 20px; font-weight: 700; color: #0F172A; letter-spacing: -0.3px; 
   flex: 1 1 auto; min-height: 0;
 }
 svg { width: 100%; height: 100%; display: block; }
+.zoom-controls { position: absolute; bottom: 12px; right: 12px; display: flex; flex-direction: column; gap: 4px; z-index: 5; }
+.zoom-btn { width: 32px; height: 32px; border: 1px solid #E2E8F0; border-radius: 6px; background: #fff; color: #475569; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,.1); transition: background .15s, color .15s; line-height: 1; user-select: none; }
+.zoom-btn:hover { background: #F1F5F9; color: #0F172A; }
+.zoom-btn.reset { font-size: 11px; font-weight: 500; }
+.zoom-level { font-size: 10px; color: #94A3B8; text-align: center; padding: 2px 0; font-variant-numeric: tabular-nums; user-select: none; }
 .county {
   stroke: #475569; stroke-width: 1; stroke-linejoin: round;
   cursor: pointer; transition: opacity .2s ease; fill-rule: evenodd;
@@ -143,6 +148,12 @@ button.legend-item { line-height: 1.4; }
   <div id="map-container">
     <svg id="map"></svg>
     <div id="tooltip"></div>
+    <div class="zoom-controls">
+      <button class="zoom-btn" id="zoomIn" title="Zoom in">+</button>
+      <div class="zoom-level" id="zoomLevel">1.0x</div>
+      <button class="zoom-btn" id="zoomOut" title="Zoom out">−</button>
+      <button class="zoom-btn reset" id="zoomReset" title="Reset view">↺</button>
+    </div>
   </div>
   <div class="cta" role="note">
     <span class="cta-arrow" aria-hidden="true">
@@ -152,9 +163,10 @@ button.legend-item { line-height: 1.4; }
   </div>
   <div class="legend" id="legend"></div>
   <div class="legend-hint" id="legendHint">Click again on the active party to return to the winner view</div>
-  <div class="footer">· Chart made by Andrei Miclea · Source: Central Election Commission (CIK)</div>
+  <div class="footer">· Scroll to zoom, drag to pan, double-click to reset · Chart made by Andrei Miclea · Source: Central Election Commission (CIK)</div>
 </div>
 
+<script src="assets/map-utils.js"></script>
 <script>
 const NO_DATA_COLOR = '#E2E8F0';
 const SVG_W = 1000, SVG_H = 600;
@@ -356,6 +368,7 @@ function buildMap(countyData){
       svg.appendChild(p);
     }
   });
+  if (window.EE && window.EE.enableZoomPan) window.EE.enableZoomPan(svg, { controls: { zoomIn: 'zoomIn', zoomOut: 'zoomOut', zoomReset: 'zoomReset', zoomLevel: 'zoomLevel' }, maxK: 12 });
 }
 
 /* --- tooltip --- */
