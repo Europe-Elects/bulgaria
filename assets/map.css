@@ -31,6 +31,9 @@ h1 { font-size: 20px; font-weight: 700; color: #0F172A; letter-spacing: -0.3px; 
 }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
+.header { position: relative; padding-left: 96px; min-height: 36px; }
+.chart-logo { position: absolute; left: 0; top: 0; height: 28px; width: auto; z-index: 2; }
+
 #map-container, .viz-container {
   position: relative; width: 100%; overflow: visible;
   background: #fff; border-radius: 8px; border: 1px solid #E2E8F0;

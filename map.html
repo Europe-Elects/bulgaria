@@ -135,11 +135,14 @@ button.legend-item { line-height: 1.4; }
   .bar-fill { transition: none; }
   @keyframes pulse { 0%, 100% { opacity: 1; } }
 }
+.header { position: relative; padding-left: 96px; min-height: 36px; }
+.chart-logo { position: absolute; left: 0; top: 0; height: 28px; width: auto; z-index: 2; }
 </style>
 </head>
 <body>
 <div class="container">
   <div class="header">
+    <img src="logo.png" class="chart-logo" alt="Europe Elects logo">
     <h1>Bulgaria · Parliamentary Election, 27 October 2024</h1>
     <div class="subtitle">Party list vote share across 28 oblasts · domestic votes only</div>
     <div class="last-updated" id="lastUpdated">Last updated: –</div>
