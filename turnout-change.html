@@ -309,16 +309,17 @@
       svg.appendChild(lx);
     }
 
-    // axis titles
+    // axis titles — reflect which snapshot we're comparing
+    const intraday = snap2026 && snap2026 !== 'final';
     const axY = document.createElementNS(ns, 'text');
     axY.setAttribute('transform', `translate(12,${M.t + pH / 2}) rotate(-90)`);
     axY.setAttribute('text-anchor', 'middle'); axY.setAttribute('class', 'axis-title');
-    axY.textContent = '2026 turnout (%)';
+    axY.textContent = intraday ? `2026 turnout @ ${snap2026} (%)` : '2026 turnout (%)';
     svg.appendChild(axY);
     const axX = document.createElementNS(ns, 'text');
     axX.setAttribute('x', M.l + pW / 2); axX.setAttribute('y', M.t + pH + 34);
     axX.setAttribute('text-anchor', 'middle'); axX.setAttribute('class', 'axis-title');
-    axX.textContent = 'Oct 2024 turnout (%)';
+    axX.textContent = intraday ? `Oct 2024 turnout @ ${snap2026} (%)` : 'Oct 2024 turnout (%)';
     svg.appendChild(axX);
 
     // diagonal y=x
@@ -447,9 +448,13 @@
   function showTooltip(e, p, name) {
     const tt = document.getElementById('tooltip');
     const color = p.d > 0 ? '#1D4ED8' : p.d < 0 ? '#B91C1C' : '#334155';
+    const label2024 = snap2026 === 'final' ? 'Oct 2024 final'
+                    : snap2026 ? `Oct 2024 @ ${snap2026}`
+                    : 'Oct 2024';
+    const label2026 = snap2026 && snap2026 !== 'final' ? `2026 @ ${snap2026}` : '2026 latest';
     tt.innerHTML = `<h3>${name}</h3>
-      <div class="bar-row"><div class="bar-label">Oct 2024 final</div><div class="bar-pct">${p.b.toFixed(2)}%</div></div>
-      <div class="bar-row"><div class="bar-label">2026 latest</div><div class="bar-pct">${p.c.toFixed(2)}%</div></div>
+      <div class="bar-row"><div class="bar-label">${label2024}</div><div class="bar-pct">${p.b.toFixed(2)}%</div></div>
+      <div class="bar-row"><div class="bar-label">${label2026}</div><div class="bar-pct">${p.c.toFixed(2)}%</div></div>
       <div class="bar-row"><div class="bar-label"><strong>Change</strong></div><div class="bar-pct" style="color:${color};font-weight:700">${p.d > 0 ? '+' : ''}${p.d.toFixed(2)} pp</div></div>`;
     tt.style.display = 'block';
     moveTooltip(e);
