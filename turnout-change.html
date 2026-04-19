@@ -84,6 +84,7 @@
     <div class="subtitle" id="subtitle">Direct comparison at the same snapshot · each dot is an oblast · above the diagonal = higher turnout than 2024</div>
     <div class="status-row">
       <span class="last-updated" id="lastUpdated">Last updated: –</span>
+      <span class="counted-pill" id="countedPill"></span>
     </div>
   </div>
 
@@ -122,7 +123,7 @@
 <script src="assets/map-utils.js"></script>
 <script>
 (function () {
-  const { loadResults, autoRefresh, formatTs, setLiveDot } = window.EE;
+  const { loadResults, autoRefresh, formatTs, setLiveDot, setCountedPill } = window.EE;
 
   const NAT_2024_FINAL = 38.94;
 
@@ -223,6 +224,7 @@
     const d = await loadResults('results_live.json');
     document.getElementById('lastUpdated').textContent = 'Last updated: ' + formatTs(d.lastUpdated);
     setLiveDot(document.getElementById('lastUpdated'), d.processingPctDomestic > 0 && d.processingPctDomestic < 100);
+    setCountedPill(document.getElementById('countedPill'), d.processingPctDomestic);
 
     live2026Oblast = {};
     for (const [id, row] of Object.entries(d.oblastList || {})) {

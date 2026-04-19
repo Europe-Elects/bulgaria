@@ -164,12 +164,10 @@
     return d.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Sofia' });
   }
   function setCountedPill(el, pct) {
-    if (typeof pct !== 'number' || pct <= 0 || pct >= 100) {
-      el.style.display = 'none';
-      return;
-    }
+    if (!el) return;
+    const v = typeof pct === 'number' ? pct : 0;
     el.style.display = 'inline-block';
-    el.textContent = pct.toFixed(1) + '% counted';
+    el.textContent = v.toFixed(1) + '% counted';
   }
   function setLiveDot(el, isLive) {
     el.classList.toggle('live', !!isLive);

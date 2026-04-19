@@ -45,6 +45,7 @@
     <div class="subtitle">МИР 32 — abroad polling stations aggregated per country. Countries shaded by the winning party there.</div>
     <div class="status-row">
       <span class="last-updated" id="lastUpdated">Last updated: –</span>
+      <span class="counted-pill" id="countedPill"></span>
       <span class="cycle-chip" id="cycleChip">Oct 2024 reference</span>
     </div>
   </div>
@@ -70,7 +71,7 @@
 <script>
 (function () {
   const { isLightFill, cssId, partyShade, partyMaxPct,
-          loadResults, autoRefresh, formatTs } = window.EE;
+          loadResults, autoRefresh, formatTs, setCountedPill } = window.EE;
   const NO_DATA = '#E2E8F0';
   // 900×450 gives a 2:1 aspect ratio matching our −170..180 × −55..78 view
   const W = 900, H = 450;
@@ -176,6 +177,7 @@
   async function tryRefreshLive() {
     try {
       const d = await loadResults('results_live.json');
+      setCountedPill(document.getElementById('countedPill'), d.processingPctDomestic);
       if (d && d.diaspora && d.diaspora.countries && Object.keys(d.diaspora.countries).length) {
         DATA = d.diaspora;
         lastCycleIsLive = true;
