@@ -124,10 +124,12 @@
 (function () {
   const { loadResults, autoRefresh, formatTs, setLiveDot } = window.EE;
 
-  const NAT_2024_TURNOUT = 38.94;
+  const NAT_2024_FINAL = 38.94;
 
-  // Oct 2024 oblast final turnouts (from baseline_turnout_2024.json)
-  let baselineOblast = null;       // { BG01: 42.49, ... }
+  // Oct 2024 baselines at three snapshots (from baseline_turnout_2024.json)
+  let baselineOblastBySnap = { '11:00': null, '16:00': null, 'final': null };
+  let baselineNationalBySnap = { '11:00': null, '16:00': null, 'final': NAT_2024_FINAL };
+  let baselineOblast = null;       // whichever snapshot we compare against this render
   let baselineMuni = null;         // { BLG01: 46.76, ... } — not pre-built, loaded from post-count if present
   let baselineOblastNames = null;  // { BG01: "Blagoevgrad", ... }
   let baselineMuniNames = null;    // { BLG01: "Bansko", ... }
@@ -135,6 +137,8 @@
   let live2026Oblast = {};
   let live2026Muni = {};
   let nat2026 = null;
+  let snap2026 = null;             // '11:00' | '16:00' | 'final'
+  let nat2024 = NAT_2024_FINAL;    // baseline national value that matches snap2026
 
   let currentLayer = 'oblast';
   try {
@@ -148,7 +152,13 @@
       fetch('baseline_turnout_2024.json').then(r => r.json()),
       fetch('baseline_2024_municipalities.json').then(r => r.json()),
     ]);
-    baselineOblast = baseOb.oblast_final_turnout_2024;
+    baselineOblastBySnap['11:00'] = baseOb.oblast_11am_turnout_2024 || null;
+    baselineOblastBySnap['16:00'] = baseOb.oblast_4pm_turnout_2024 || null;
+    baselineOblastBySnap['final'] = baseOb.oblast_final_turnout_2024 || null;
+    const natIntraday = baseOb.national_intraday_turnout_2024 || {};
+    baselineNationalBySnap['11:00'] = natIntraday['11:00'] ?? null;
+    baselineNationalBySnap['16:00'] = natIntraday['16:00'] ?? null;
+    baselineOblast = baselineOblastBySnap.final;
     baselineOblastNames = {};
     geoOb.features.forEach(f => {
       baselineOblastNames[f.properties.id] = f.properties.name;
@@ -196,9 +206,15 @@
     render();
   }
   function updateSubtitle() {
+    const label2024 = snap2026 === 'final' ? 'Oct 2024 final'
+                    : snap2026 ? `Oct 2024 @ ${snap2026}`
+                    : 'Oct 2024';
+    const tail = snap2026 && snap2026 !== 'final'
+      ? ` · 2026 @ ${snap2026} vs ${label2024} (apples-to-apples intraday)`
+      : '';
     document.getElementById('subtitle').textContent = currentLayer === 'muni'
-      ? 'Direct comparison at the same snapshot · each dot is a municipality · above the diagonal = higher turnout than 2024 · populated post-count'
-      : 'Direct comparison at the same snapshot · each dot is an oblast · above the diagonal = higher turnout than 2024';
+      ? `Direct comparison at the same snapshot · each dot is a municipality · above the diagonal = higher turnout than 2024 · populated post-count${tail}`
+      : `Direct comparison at the same snapshot · each dot is an oblast · above the diagonal = higher turnout than 2024${tail}`;
   }
 
   async function refresh() {
@@ -214,9 +230,15 @@
 
     const hist = (d.turnout && d.turnout.nationalHistory) || {};
     nat2026 = null;
-    for (const t of ['20:00', '16:00', '11:00']) {
-      if (typeof hist[t] === 'number' && hist[t] > 0) { nat2026 = hist[t]; break; }
+    snap2026 = null;
+    // 20:00 snapshot → compare against final; otherwise match snapshot-to-snapshot
+    for (const [key, snapName] of [['20:00','final'], ['16:00','16:00'], ['11:00','11:00']]) {
+      if (typeof hist[key] === 'number' && hist[key] > 0) { nat2026 = hist[key]; snap2026 = snapName; break; }
     }
+    // pick matching baselines (fall back to final if intraday missing)
+    baselineOblast = baselineOblastBySnap[snap2026] || baselineOblastBySnap.final;
+    nat2024 = baselineNationalBySnap[snap2026] ?? NAT_2024_FINAL;
+    updateSubtitle();
     render();
   }
 
@@ -356,10 +378,14 @@
     const natEl = document.getElementById('natDelta');
     const natSub = document.getElementById('natSub');
     if (typeof nat2026 === 'number') {
-      const d = +(nat2026 - NAT_2024_TURNOUT).toFixed(2);
+      const d = +(nat2026 - nat2024).toFixed(2);
       natEl.textContent = (d > 0 ? '+' : '') + d.toFixed(2) + ' pp';
       natEl.className = 'big ' + (d > 0 ? 'pos' : d < 0 ? 'neg' : '');
-      natSub.textContent = `${nat2026.toFixed(2)}% (2026) vs ${NAT_2024_TURNOUT.toFixed(2)}% (Oct 2024 final)`;
+      const label2024 = snap2026 === 'final' ? 'Oct 2024 final'
+                      : snap2026 ? `Oct 2024 @ ${snap2026}`
+                      : 'Oct 2024';
+      const label2026 = snap2026 && snap2026 !== 'final' ? `2026 @ ${snap2026}` : '2026';
+      natSub.textContent = `${nat2026.toFixed(2)}% (${label2026}) vs ${nat2024.toFixed(2)}% (${label2024})`;
     } else {
       natEl.textContent = '—'; natEl.className = 'big';
       natSub.textContent = 'awaiting first 2026 snapshot';
