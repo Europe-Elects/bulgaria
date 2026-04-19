@@ -137,7 +137,8 @@
   let live2026Oblast = {};
   let live2026Muni = {};
   let nat2026 = null;
-  let snap2026 = null;             // '11:00' | '16:00' | 'final'
+  let snap2026 = null;             // bucket: '11:00' | '16:00' | 'final'
+  let snapKey2026 = null;          // exact CIK label e.g. "11:00", "12:00", "16:00", "17:00"
   let nat2024 = NAT_2024_FINAL;    // baseline national value that matches snap2026
 
   let currentLayer = 'oblast';
@@ -206,11 +207,12 @@
     render();
   }
   function updateSubtitle() {
+    const shown = snapKey2026 || snap2026;
     const label2024 = snap2026 === 'final' ? 'Oct 2024 final'
                     : snap2026 ? `Oct 2024 @ ${snap2026}`
                     : 'Oct 2024';
     const tail = snap2026 && snap2026 !== 'final'
-      ? ` · 2026 @ ${snap2026} vs ${label2024} (apples-to-apples intraday)`
+      ? ` · 2026 @ ${shown} vs ${label2024} (apples-to-apples intraday)`
       : '';
     document.getElementById('subtitle').textContent = currentLayer === 'muni'
       ? `Direct comparison at the same snapshot · each dot is a municipality · above the diagonal = higher turnout than 2024 · populated post-count${tail}`
@@ -231,9 +233,22 @@
     const hist = (d.turnout && d.turnout.nationalHistory) || {};
     nat2026 = null;
     snap2026 = null;
-    // 20:00 snapshot → compare against final; otherwise match snapshot-to-snapshot
-    for (const [key, snapName] of [['20:00','final'], ['16:00','16:00'], ['11:00','11:00']]) {
-      if (typeof hist[key] === 'number' && hist[key] > 0) { nat2026 = hist[key]; snap2026 = snapName; break; }
+    snapKey2026 = null;
+    // Classify by hour of the snapshot key (CIK ships e.g. "11:00" / "16:00"
+    // but the label could shift — bucket by time so either "16:00" or "17:00"
+    // maps to the late-afternoon baseline).
+    //   ≥ 20 → final (3rd snapshot, post-close)
+    //   14–19 → mid/late-afternoon bucket ('16:00' baseline — the 4pm snapshot)
+    //   10–13 → late-morning bucket ('11:00' baseline)
+    const entries = Object.entries(hist)
+      .filter(([k, v]) => typeof v === 'number' && v > 0 && /^\d{1,2}:\d{2}$/.test(k))
+      .map(([k, v]) => ({ key: k, hour: parseInt(k.split(':')[0], 10), v }))
+      .sort((a, b) => b.hour - a.hour);
+    if (entries.length) {
+      const latest = entries[0];
+      nat2026 = latest.v;
+      snapKey2026 = latest.key;
+      snap2026 = latest.hour >= 20 ? 'final' : latest.hour >= 14 ? '16:00' : '11:00';
     }
     // pick matching baselines (fall back to final if intraday missing)
     baselineOblast = baselineOblastBySnap[snap2026] || baselineOblastBySnap.final;
@@ -311,10 +326,11 @@
 
     // axis titles — reflect which snapshot we're comparing
     const intraday = snap2026 && snap2026 !== 'final';
+    const shown = snapKey2026 || snap2026;
     const axY = document.createElementNS(ns, 'text');
     axY.setAttribute('transform', `translate(12,${M.t + pH / 2}) rotate(-90)`);
     axY.setAttribute('text-anchor', 'middle'); axY.setAttribute('class', 'axis-title');
-    axY.textContent = intraday ? `2026 turnout @ ${snap2026} (%)` : '2026 turnout (%)';
+    axY.textContent = intraday ? `2026 turnout @ ${shown} (%)` : '2026 turnout (%)';
     svg.appendChild(axY);
     const axX = document.createElementNS(ns, 'text');
     axX.setAttribute('x', M.l + pW / 2); axX.setAttribute('y', M.t + pH + 34);
@@ -414,10 +430,11 @@
       const d = +(nat2026 - nat2024).toFixed(2);
       natEl.textContent = (d > 0 ? '+' : '') + d.toFixed(2) + ' pp';
       natEl.className = 'big ' + (d > 0 ? 'pos' : d < 0 ? 'neg' : '');
+      const shown = snapKey2026 || snap2026;
       const label2024 = snap2026 === 'final' ? 'Oct 2024 final'
                       : snap2026 ? `Oct 2024 @ ${snap2026}`
                       : 'Oct 2024';
-      const label2026 = snap2026 && snap2026 !== 'final' ? `2026 @ ${snap2026}` : '2026';
+      const label2026 = snap2026 && snap2026 !== 'final' ? `2026 @ ${shown}` : '2026';
       natSub.textContent = `${nat2026.toFixed(2)}% (${label2026}) vs ${nat2024.toFixed(2)}% (${label2024})`;
     } else {
       natEl.textContent = '—'; natEl.className = 'big';
@@ -448,10 +465,11 @@
   function showTooltip(e, p, name) {
     const tt = document.getElementById('tooltip');
     const color = p.d > 0 ? '#1D4ED8' : p.d < 0 ? '#B91C1C' : '#334155';
+    const shown = snapKey2026 || snap2026;
     const label2024 = snap2026 === 'final' ? 'Oct 2024 final'
                     : snap2026 ? `Oct 2024 @ ${snap2026}`
                     : 'Oct 2024';
-    const label2026 = snap2026 && snap2026 !== 'final' ? `2026 @ ${snap2026}` : '2026 latest';
+    const label2026 = snap2026 && snap2026 !== 'final' ? `2026 @ ${shown}` : '2026 latest';
     tt.innerHTML = `<h3>${name}</h3>
       <div class="bar-row"><div class="bar-label">${label2024}</div><div class="bar-pct">${p.b.toFixed(2)}%</div></div>
       <div class="bar-row"><div class="bar-label">${label2026}</div><div class="bar-pct">${p.c.toFixed(2)}%</div></div>
