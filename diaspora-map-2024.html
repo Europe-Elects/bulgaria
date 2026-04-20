@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bulgaria 2026 – Diaspora by country</title>
+<title>Bulgaria Oct 2024 – Diaspora results by country</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/map.css">
@@ -36,31 +36,20 @@
   .zoom-btn.reset { font-size: 11px; font-weight: 500; }
   .zoom-level { font-size: 10px; color: #94A3B8; text-align: center; padding: 2px 0; font-variant-numeric: tabular-nums; user-select: none; }
 
-  .empty-overlay {
-    position: absolute; inset: 0; z-index: 6;
-    display: none; align-items: center; justify-content: center;
-    flex-direction: column; gap: 4px;
-    pointer-events: none;
-    font-size: 13px; color: #475569; font-weight: 500;
-    text-align: center; padding: 20px; line-height: 1.6;
-  }
-  .empty-overlay a { pointer-events: auto; color: #2563EB; text-decoration: underline; }
-  .empty-overlay code { background: #F1F5F9; padding: 1px 6px; border-radius: 3px; font-size: 11px; }
 </style>
 </head>
 <body>
 <div class="container">
   <div class="header">
-        <h1>Bulgaria 2026 · Diaspora vote by country</h1>
-    <div class="subtitle">МИР 32 — abroad polling stations aggregated per country. Populates from CIK's post-count opendata zip (~2–5 days after 19 April).</div>
+        <h1>Bulgaria Oct 2024 · Diaspora results by country</h1>
+    <div class="subtitle">МИР 32 — abroad polling stations aggregated per country. Final Oct 2024 result; countries shaded by the winning party.</div>
     <div class="status-row">
-      <span class="last-updated" id="lastUpdated">Awaiting post-count data</span>
-      <span class="cycle-chip" id="cycleChip">2026 · pending</span>
+      <span class="last-updated" id="lastUpdated">Oct 2024 · final</span>
+      <span class="cycle-chip">Oct 2024 reference</span>
     </div>
   </div>
   <div id="map-container">
         <svg id="map" viewBox="0 0 900 450" preserveAspectRatio="xMidYMid meet"></svg>
-    <div id="emptyOverlay" class="empty-overlay" style="display:flex">Awaiting 2026 post-count diaspora data.<br>Populates when CIK publishes <code>opendata/export.zip</code> (~2–5 days after 19 April).<br>For Oct 2024 reference, see <a href="diaspora-map-2024.html">diaspora-map-2024</a>.</div>
     <div id="tooltip"></div>
     <div class="zoom-controls">
       <button class="zoom-btn" id="zoomIn" title="Zoom in">+</button>
@@ -125,7 +114,10 @@
     const svg = document.getElementById('map');
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
 
-    const world = await fetch('world.geojson').then(r => r.json());
+    const [world, baseline] = await Promise.all([
+      fetch('world.geojson').then(r => r.json()),
+      fetch('baseline_diaspora_2024.json').then(r => r.json()),
+    ]);
     world.features.forEach(f => {
       const iso3 = f.properties.iso_a3;
       if (!iso3 || iso3 === '-99') return;
@@ -133,39 +125,27 @@
       PATHS[iso3] = featurePath(f);
     });
 
-    // 2026 only — try live, otherwise stay empty until post_count publishes.
-    await tryRefreshLive(/*initial=*/true);
-    autoRefresh(tryRefreshLive, 60000);
-  }
+    // Frozen on Oct 2024 results — never loads live data.
+    DATA = baseline;
+    const META = [
+      ['GERB-SDS','GERB-SDS (EPP)','#3399FF',null],
+      ['PB','PB (*)','#999999',null],
+      ['PP-DB','PP-DB (RE | EPP)','#FFD700','#3399FF'],
+      ['Vazrazhdane','Vazrazhdane (ESN)','#70463A',null],
+      ['DPS-NN','DPS-NN (NI)','#777777',null],
+      ['BSP-OL','BSP-OL (S&D)','#FF0000',null],
+      ['ITN','ITN (ECR)','#0000FF',null],
+      ['APS','APS (RE)','#FFD700',null],
+      ['MECh','MECh (*)','#999999',null],
+      ['Velichie','Velichie (*)','#999999',null],
+    ];
+    META.forEach(([k,n,c,c2]) => {
+      PARTIES[k] = { color: c, color2: c2, name: n };
+      PARTY_ORDER.push(k);
+    });
 
-  async function tryRefreshLive(initial = false) {
-    try {
-      const d = await loadResults('results_live.json');
-      if (d && d.diaspora && d.diaspora.countries && Object.keys(d.diaspora.countries).length) {
-        DATA = d.diaspora;
-        lastCycleIsLive = true;
-        for (const p of (d.parties || [])) {
-          if (!PARTIES[p.key]) {
-            PARTIES[p.key] = { color: p.color, color2: p.color2 || null, name: p.name };
-            PARTY_ORDER.push(p.key);
-          }
-        }
-        document.getElementById('lastUpdated').textContent = 'Last updated: ' + formatTs(d.lastUpdated);
-        const chip = document.getElementById('cycleChip');
-        chip.textContent = '2026 live';
-        chip.classList.add('live');
-        const ov = document.getElementById('emptyOverlay');
-        if (ov) ov.style.display = 'none';
-        buildLegend();
-        render();
-      } else if (initial) {
-        // Empty state: just draw country borders, no shading
-        DATA = { countries: {} };
-        render();
-      }
-    } catch (e) {
-      if (initial) { DATA = { countries: {} }; render(); }
-    }
+    buildLegend();
+    render();
   }
 
   function countryWinner(iso3) {
