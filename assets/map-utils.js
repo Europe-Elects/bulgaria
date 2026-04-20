@@ -5,7 +5,7 @@
   'use strict';
 
   const NO_DATA_COLOR = '#E2E8F0';
-  const META_KEYS = new Set(['name', 'name_en', 'turnout', 'turnout_pct', 'seats']);
+  const META_KEYS = new Set(['name', 'name_en', 'turnout', 'turnout_pct', 'seats', 'progress']);
 
   /* ---------- colour ---------- */
   function hexToRgb(hex) {

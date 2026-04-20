@@ -296,6 +296,9 @@
     const base = BASELINE[id];
     const cur = live[id];
     let html = `<h3>${NAMES[id] || id}</h3>`;
+    if (cur && typeof cur.progress === 'number') {
+      html += `<div style="font-size:11px;color:#64748B;margin-bottom:6px;font-variant-numeric:tabular-nums;">${cur.progress.toFixed(1)}% protocols processed</div>`;
+    }
     if (!base || !cur) {
       html += '<div class="no-data">No data</div>';
     } else {

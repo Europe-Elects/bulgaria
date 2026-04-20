@@ -155,6 +155,9 @@
   function showTooltip(e, id, row) {
     const tt = document.getElementById('tooltip');
     let html = `<h3>${NAMES[id] || id}</h3>`;
+    if (row && typeof row.progress === 'number') {
+      html += `<div style="font-size:11px;color:#64748B;margin-bottom:6px;font-variant-numeric:tabular-nums;">${row.progress.toFixed(1)}% protocols processed</div>`;
+    }
     if (row && hasData(row)) {
       Object.entries(row).filter(([k, v]) => !window.EE.META_KEYS.has(k) && typeof v === 'number')
         .sort((a, b) => b[1] - a[1]).forEach(([party, pct]) => {
