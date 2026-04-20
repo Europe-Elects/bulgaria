@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bulgaria 2026 – Polling Institute Accuracy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/map.css">
+<style>
+  html, body { height: auto; overflow: auto; }
+  body { display: block; }
+  .container { max-width: 1200px; flex: none; display: block; }
+  .viz-container { flex: none; padding: 14px 12px; }
+
+  /* Header result row */
+  .accuracy-header {
+    display: grid; grid-template-columns: 140px 90px repeat(var(--cols, 10), minmax(54px, 1fr)) 100px;
+    gap: 4px; align-items: end; padding: 10px 8px 12px 8px;
+    border-bottom: 1px solid #E2E8F0; margin-bottom: 6px;
+  }
+  .accuracy-header .hdr-institute { font-size: 11px; font-weight: 600; color: #475569; }
+  .accuracy-header .hdr-period { font-size: 11px; font-weight: 600; color: #475569; }
+  .accuracy-header .hdr-err { font-size: 11px; font-weight: 600; color: #475569; text-align: right; padding-right: 4px; }
+  .accuracy-header .party-col {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    font-size: 10px; font-variant-numeric: tabular-nums;
+  }
+  .party-col .pc-name { font-weight: 700; font-size: 11px; letter-spacing: -0.1px; white-space: nowrap; }
+  .party-col .pc-actual { font-size: 9px; font-weight: 600; color: #64748B; }
+  .party-col .pc-underline { width: 100%; height: 3px; border-radius: 2px; }
+
+  /* Pollster row */
+  .pa-row {
+    display: grid; grid-template-columns: 140px 90px repeat(var(--cols, 10), minmax(54px, 1fr)) 100px;
+    gap: 4px; align-items: center; padding: 7px 8px; border-radius: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .pa-row:nth-child(even) { background: #F8FAFC; }
+  .pa-institute { font-size: 12px; font-weight: 700; color: #0F172A; }
+  .pa-period    { font-size: 11px; color: #64748B; white-space: nowrap; }
+  .pa-cell {
+    font-size: 11px; text-align: center; padding: 2px 0; border-radius: 3px;
+    color: #0F172A;
+  }
+  .pa-cell.na { color: #CBD5E1; font-size: 10px; }
+  .pa-cell.pos { color: #1D4ED8; }
+  .pa-cell.neg { color: #B91C1C; }
+  .pa-cell.accurate {
+    background: #DCFCE7; color: #15803D; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .pa-mae {
+    display: flex; align-items: center; justify-content: flex-end; gap: 6px;
+    font-size: 12px; font-weight: 700;
+  }
+  .mae-bar {
+    flex: 1; max-width: 52px; height: 5px; border-radius: 3px;
+    background: #F1F5F9; overflow: hidden;
+  }
+  .mae-bar-fill { height: 100%; border-radius: 3px; transition: width .6s ease; }
+  .mae-text { min-width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Colour bands matching Romanian pattern */
+  .c-good { color: #10B981; }
+  .c-ok   { color: #F59E0B; }
+  .c-bad  { color: #EF4444; }
+  .bg-good { background: #10B981; }
+  .bg-ok   { background: #F59E0B; }
+  .bg-bad  { background: #EF4444; }
+
+  .legend-note {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    margin-top: 12px; padding: 10px 12px;
+    background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;
+    font-size: 11px; color: #475569;
+  }
+  .legend-note .item { display: inline-flex; align-items: center; gap: 6px; }
+  .legend-note .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  @media (max-width: 900px) {
+    .container { max-width: 100%; padding: 10px 8px; }
+    .accuracy-header, .pa-row { grid-template-columns: 100px 70px repeat(var(--cols, 10), minmax(40px, 1fr)) 80px; gap: 2px; }
+    .pa-cell { font-size: 10px; }
+    .accuracy-header .party-col { font-size: 9px; }
+    .party-col .pc-name { font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Bulgaria 2026 · Polling Institute Accuracy</h1>
+    <div class="subtitle">Last pre-election poll per institute · absolute error vs actual result · exit polls excluded</div>
+  </div>
+  <div class="viz-container">
+    <div class="map-logo"><img src="logo.png?v=2" alt="Europe Elects"></div>
+    <div id="list" style="padding-top: 34px;"></div>
+    <div class="legend-note">
+      <div class="item"><span class="dot bg-good"></span><strong class="c-good">&lt; 2.2</strong> pp – high accuracy</div>
+      <div class="item"><span class="dot bg-ok"></span><strong class="c-ok">2.2 – 3.0</strong> pp – moderate</div>
+      <div class="item"><span class="dot bg-bad"></span><strong class="c-bad">&gt; 3.0</strong> pp – low</div>
+      <div class="item">Avg error = mean absolute error across parties each pollster covered (em-dash = skipped)</div>
+    </div>
+  </div>
+  <div class="footer">· Chart made by Andrei Miclea · Source polls: Wikipedia, Opinion polling for the 2026 Bulgarian parliamentary election · Source actual: Central Election Commission (CIK)</div>
+</div>
+<script>
+(function () {
+  // --- Actual results (rounded to the tenth, as reported by CIK at 98.33%+) ---
+  // Parties ordered by actual share (largest → smallest), so the header reads
+  // like a standings table.
+  const PARTIES = [
+    { key: 'PB',         name: 'PB',       color: '#166534', actual: 44.0 },  // Progresivna Bulgaria, custom dark green
+    { key: 'GERB-SDS',   name: 'GERB-SDS', color: '#3399FF', actual: 13.2 },
+    { key: 'PP-DB',      name: 'PP-DB',    color: '#FFD700', color2: '#3399FF', actual: 12.6 },
+    { key: 'DPS',        name: 'DPS-NN',   color: '#777777', actual: 6.8 },
+    { key: 'Vaz',        name: 'Vazr.',    color: '#70463A', actual: 4.2 },
+    { key: 'MECh',       name: 'MECh',     color: '#0F172A', actual: 3.2 },
+    { key: 'Veli',       name: 'Veli.',   color: '#B91C1C', actual: 3.1 },
+    { key: 'BSP-OL',     name: 'BSP-OL',   color: '#FF0000', actual: 3.0 },
+    { key: 'Siy',        name: 'Siy.',    color: '#009900', actual: 2.9 },
+    { key: 'APS',        name: 'APS',      color: '#FFD700', actual: 1.5 },
+    { key: 'ITN',        name: 'ITN',      color: '#0000FF', actual: 0.7 },
+    { key: 'SB',         name: 'SB',       color: '#1E40AF', actual: 0.6 },
+    { key: 'Others',     name: 'Others',   color: '#94A3B8', actual: 4.2 },
+  ];
+  document.documentElement.style.setProperty('--cols', PARTIES.length);
+
+  // --- Last pre-election poll per pollster (exit polls of 19 Apr excluded) ---
+  const POLLS = [
+    { institute: 'Alpha Research', period: '13–15 Apr', data: { 'GERB-SDS':19.5,'PP-DB':11.6,'Vaz':5.8,'DPS':9.4,'BSP-OL':4.0,'APS':1.3,'ITN':1.7,'MECh':2.8,'Veli':2.9,'SB':1.0,'PB':34.2,'Siy':3.2,'Others':2.6 } },
+    { institute: 'Myara',          period: '4–13 Apr',  data: { 'GERB-SDS':18.5,'PP-DB':11.4,'Vaz':7.4,'DPS':9.1,'BSP-OL':4.0,'APS':1.9,'ITN':1.4,'MECh':3.5,'Veli':2.2,'PB':34.6,'Siy':3.6,'Others':2.4 } },
+    { institute: 'Trend',          period: '13–16 Apr', data: { 'GERB-SDS':19.1,'PP-DB':11.2,'Vaz':7.1,'DPS':10.2,'BSP-OL':4.0,'APS':1.6,'ITN':2.1,'MECh':3.7,'Veli':1.7,'SB':1.0,'PB':33.2,'Siy':3.9,'Others':1.2 } },
+    { institute: 'CAM',            period: '3–14 Apr',  data: { 'GERB-SDS':19.4,'PP-DB':12.0,'Vaz':7.0,'DPS':11.2,'BSP-OL':4.2,'APS':0.9,'ITN':0.9,'MECh':2.8,'Veli':2.0,'SB':1.1,'PB':32.1,'Siy':2.1 } },
+    { institute: 'Sova Harris',    period: '2–6 Apr',   data: { 'GERB-SDS':19.0,'PP-DB':11.2,'Vaz':7.8,'DPS':9.7,'BSP-OL':4.5,'APS':2.3,'MECh':3.1,'Veli':2.0,'PB':33.6,'Siy':3.1,'Others':3.7 } },
+    { institute: 'MarketLinks',    period: '7–14 Apr',  data: { 'GERB-SDS':19.8,'PP-DB':13.1,'Vaz':5.6,'DPS':7.5,'BSP-OL':3.0,'MECh':3.1,'Veli':3.4,'PB':38.0,'Siy':3.1,'Others':3.4 } },
+    { institute: 'Gallup',         period: '8–16 Apr',  data: { 'GERB-SDS':21.0,'PP-DB':10.7,'Vaz':6.8,'DPS':10.5,'BSP-OL':4.0,'APS':1.0,'ITN':3.0,'MECh':2.8,'Veli':2.0,'SB':0.8,'PB':31.6,'Siy':3.2,'Others':2.6 } },
+  ];
+
+  // --- Compute MAE per pollster ---
+  for (const p of POLLS) {
+    const errs = [];
+    for (const party of PARTIES) {
+      const v = p.data[party.key];
+      if (typeof v === 'number') errs.push(Math.abs(v - party.actual));
+    }
+    p.errs = errs;
+    p.mae = errs.length ? errs.reduce((a,b) => a+b, 0) / errs.length : null;
+    p.covered = errs.length;
+  }
+  POLLS.sort((a, b) => (a.mae ?? 99) - (b.mae ?? 99));
+  const maxMae = Math.max(...POLLS.map(p => p.mae || 0));
+
+  function colorClass(mae) {
+    if (mae < 2.2) return 'good';
+    if (mae < 3.0) return 'ok';
+    return 'bad';
+  }
+
+  function render() {
+    const list = document.getElementById('list');
+    list.innerHTML = '';
+
+    // Header row
+    const hdr = document.createElement('div');
+    hdr.className = 'accuracy-header';
+    let html = `
+      <div class="hdr-institute">Institute</div>
+      <div class="hdr-period">Period</div>`;
+    for (const party of PARTIES) {
+      const barFill = party.color2
+        ? `linear-gradient(90deg, ${party.color} 0 50%, ${party.color2} 50% 100%)`
+        : party.color;
+      html += `<div class="party-col">
+        <div class="pc-name" style="color:${party.color2 ? party.color : party.color}">${party.name}</div>
+        <div class="pc-actual">${party.actual.toFixed(1)}%</div>
+        <div class="pc-underline" style="background:${barFill}"></div>
+      </div>`;
+    }
+    html += `<div class="hdr-err">Avg error ↑</div>`;
+    hdr.innerHTML = html;
+    list.appendChild(hdr);
+
+    // Pollster rows
+    POLLS.forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'pa-row';
+      let html = `
+        <div class="pa-institute">${p.institute}</div>
+        <div class="pa-period">${p.period}</div>`;
+      for (const party of PARTIES) {
+        const v = p.data[party.key];
+        if (typeof v !== 'number') {
+          html += `<div class="pa-cell na">—</div>`;
+        } else {
+          const delta = +(v - party.actual).toFixed(1);
+          if (Math.abs(delta) < 0.3) {
+            html += `<div class="pa-cell accurate" title="${v.toFixed(1)}% vs actual ${party.actual.toFixed(1)}%">✓</div>`;
+          } else {
+            const sign = delta > 0 ? '+' : '';
+            const cls = delta > 0 ? 'pos' : 'neg';
+            html += `<div class="pa-cell ${cls}" title="${v.toFixed(1)}% (Δ ${sign}${delta.toFixed(1)}pp)">${sign}${delta.toFixed(1)}</div>`;
+          }
+        }
+      }
+      const band = colorClass(p.mae);
+      const width = ((p.mae / maxMae) * 100).toFixed(0);
+      html += `<div class="pa-mae">
+        <div class="mae-bar"><div class="mae-bar-fill bg-${band}" style="width:${width}%"></div></div>
+        <span class="mae-text c-${band}">±${p.mae.toFixed(2)}</span>
+      </div>`;
+      row.innerHTML = html;
+      list.appendChild(row);
+    });
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
