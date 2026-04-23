@@ -55,7 +55,6 @@
     <div class="subtitle">МИР 32 — abroad polling stations aggregated per country. Populates from CIK's post-count opendata zip (~2–5 days after 19 April).</div>
     <div class="status-row">
       <span class="last-updated" id="lastUpdated">Awaiting post-count data</span>
-      <span class="cycle-chip" id="cycleChip">2026 · pending</span>
     </div>
   </div>
   <div id="map-container">
@@ -151,9 +150,6 @@
           }
         }
         document.getElementById('lastUpdated').textContent = 'Last updated: ' + formatTs(d.lastUpdated);
-        const chip = document.getElementById('cycleChip');
-        chip.textContent = '2026 live';
-        chip.classList.add('live');
         const ov = document.getElementById('emptyOverlay');
         if (ov) ov.style.display = 'none';
         buildLegend();
