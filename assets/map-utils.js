@@ -165,9 +165,13 @@
   }
   function setCountedPill(el, pct) {
     if (!el) return;
-    const v = typeof pct === 'number' ? pct : 0;
+    // Hide pill once counting is complete (100%) or when no valid value yet.
+    if (typeof pct !== 'number' || pct <= 0 || pct >= 100) {
+      el.style.display = 'none';
+      return;
+    }
     el.style.display = 'inline-block';
-    el.textContent = v.toFixed(1) + '% counted';
+    el.textContent = pct.toFixed(1) + '% counted';
   }
   function setLiveDot(el, isLive) {
     el.classList.toggle('live', !!isLive);
